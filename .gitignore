@@ -1,0 +1,20 @@
+# Ignorer les dumps Android
+collector/static/collected_data/
+*.xml
+*_manifest
+*.bin
+*.img
+*.db
+*.tar
+*.zip
+
+# Environnement virtuel
+venv/
+.env/
+
+# Fichiers système
+__pycache__/
+*.pyc
+
+# Django files generated
+media/

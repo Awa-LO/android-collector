@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Système - Android Collector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        
+        .app-container {
+            max-width: 1600px;
+            margin: 2rem auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .app-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+        }
+        
+        .app-header h1 {
+            font-weight: 600;
+            font-size: 1.8rem;
+            margin: 0;
+        }
+        
+        .app-header p {
+            opacity: 0.9;
+            margin: 0.5rem 0 0;
+            font-size: 0.95rem;
+        }
+        
+        .system-section {
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .artefact-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .artefact-card:hover {
+            border-color: #007bff;
+            box-shadow: 0 4px 12px rgba(0,123,255,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .artefact-icon {
+            font-size: 1.8rem;
+            margin-right: 1rem;
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .icon-contacts { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; }
+        .icon-calls { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; }
+        .icon-sms { background: linear-gradient(135deg, #6f42c1 0%, #563d7c 100%); color: white; }
+        .icon-whatsapp { background: linear-gradient(135deg, #25d366 0%, #128C7E 100%); color: white; }
+        .icon-images { background: linear-gradient(135deg, #e83e8c 0%, #d63384 100%); color: white; }
+        .icon-audio { background: linear-gradient(135deg, #20c997 0%, #13855c 100%); color: white; }
+        .icon-video { background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%); color: white; }
+        .icon-wifi { background: linear-gradient(135deg, #6610f2 0%, #520dc2 100%); color: white; }
+        .icon-browser { background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white; }
+        .icon-emails { background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); color: #212529; }
+        .icon-location { background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%); color: white; }
+        .icon-apps { background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%); color: white; }
+        .icon-logs { background: linear-gradient(135deg, #495057 0%, #343a40 100%); color: white; }
+        
+        .file-tree {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 1.25rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-top: 1rem;
+            border: 1px solid #2d2d2d;
+        }
+        
+        .tree-folder {
+            color: #4ecdc4;
+            font-weight: bold;
+        }
+        
+        .tree-file {
+            color: #ffffff;
+        }
+        
+        .tree-db {
+            color: #ffc107;
+        }
+        
+        .tree-media {
+            color: #ff6b6b;
+        }
+        
+        .tree-path {
+            color: #74c0fc;
+            font-weight: 500;
+        }
+        
+        .path-item {
+            padding: 0.4rem 0.75rem;
+            margin: 0.25rem 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+        
+        .path-item:hover {
+            background: rgba(255,255,255,0.1);
+            border-left-color: #007bff;
+        }
+        
+        .path-item i {
+            width: 20px;
+            text-align: center;
+            margin-right: 8px;
+        }
+        
+        .badge-artefact {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            font-weight: 500;
+        }
+        
+        .badge-system { background: #6f42c1; color: white; }
+        .badge-user { background: #20c997; color: white; }
+        .badge-external { background: #fd7e14; color: white; }
+        .badge-database { background: #ffc107; color: #212529; }
+        
+        .container-main {
+            padding: 2rem;
+        }
+        
+        .section-title {
+            color: #495057;
+            font-weight: 600;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #e9ecef;
+            font-size: 1.3rem;
+        }
+        
+        .architecture-diagram {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 8px;
+            margin: 2rem 0;
+            border: 1px solid #dee2e6;
+        }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .artefact-description {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        
+        .artefact-stats {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .stat-item {
+            background: #e9ecef;
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container-main {
+                padding: 1rem;
+            }
+            
+            .artefact-card {
+                padding: 1rem;
+            }
+            
+            .artefact-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1.5rem;
+            }
+            
+            .refresh-btn {
+                bottom: 1rem;
+                right: 1rem;
+                padding: 0.5rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="app-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1><i class="fas fa-sitemap me-2"></i>Architecture Système Android</h1>
+                    <p id="device-info">Analyse en temps réel du système de fichiers</p>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-light">
+                        <i class="fas fa-arrow-left me-2"></i>Retour
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="container-main">
+            <!-- Informations Système -->
+            <div class="system-section">
+                <h3 class="mb-3"><i class="fas fa-info-circle me-2"></i>Informations de l'Appareil</h3>
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <div class="artefact-card">
+                            <i class="fas fa-microchip fa-2x text-primary mb-2"></i>
+                            <h5 id="device-model">Modèle</h5>
+                            <small class="text-muted">Appareil</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="artefact-card">
+                            <i class="fab fa-android fa-2x text-success mb-2"></i>
+                            <h5 id="android-version">Version</h5>
+                            <small class="text-muted">Android</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="artefact-card">
+                            <i class="fas fa-hdd fa-2x text-warning mb-2"></i>
+                            <h5 id="storage-total">Stockage</h5>
+                            <small class="text-muted">Total</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="artefact-card">
+                            <i class="fas fa-mobile-alt fa-2x text-info mb-2"></i>
+                            <h5 id="device-status">Connecté</h5>
+                            <small class="text-muted">Statut</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Diagramme d'Architecture -->
+            <div class="architecture-diagram">
+                <h3 class="text-center mb-4"><i class="fas fa-project-diagram me-2"></i>Architecture du Système de Fichiers Android</h3>
+                <div class="text-center">
+                    <div class="d-flex justify-content-center align-items-center flex-wrap mb-4">
+                        <div class="arch-node">
+                            <div class="card" style="width: 140px;">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-microchip fa-2x text-primary"></i>
+                                    <h6 class="mt-2">Boot</h6>
+                                    <small class="text-muted">/boot</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <i class="fas fa-arrow-right fa-lg mx-4 d-none d-md-block"></i>
+                        
+                        <div class="arch-node">
+                            <div class="card" style="width: 140px;">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-cogs fa-2x text-secondary"></i>
+                                    <h6 class="mt-2">System</h6>
+                                    <small class="text-muted">/system</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <i class="fas fa-arrow-right fa-lg mx-4 d-none d-md-block"></i>
+                        
+                        <div class="arch-node">
+                            <div class="card" style="width: 140px;">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-database fa-2x text-success"></i>
+                                    <h6 class="mt-2">Data</h6>
+                                    <small class="text-muted">/data</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <i class="fas fa-arrow-down fa-2x text-primary mb-2"></i>
+                                <h6>Contacts & Appels</h6>
+                                <small>/data/data/com.android.providers.contacts</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <i class="fas fa-arrow-down fa-2x text-success mb-2"></i>
+                                <h6>SMS & MMS</h6>
+                                <small>/data/data/com.android.providers.telephony</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <i class="fas fa-arrow-down fa-2x text-warning mb-2"></i>
+                                <h6>Applications</h6>
+                                <small>/data/app & /data/data</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contacts -->
+            <h3 class="section-title"><i class="fas fa-address-book me-2"></i>Contacts</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-contacts">
+                        <i class="fas fa-address-book"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Contacts et Profils</h4>
+                        <p class="artefact-description">Base de données des contacts téléphoniques, historiques d'appels et informations de profil.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/data/data/com.android.providers.contacts/</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/contacts2.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">SQLite</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/calllog.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">SQLite</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/profile.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">SQLite</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="artefact-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-database me-1"></i>
+                                <strong>Format:</strong> SQLite
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-shield-alt me-1"></i>
+                                <strong>Permissions:</strong> PROTECTED
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-folder me-1"></i>
+                                <strong>Type:</strong> Base de données
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Appels Téléphoniques -->
+            <h3 class="section-title"><i class="fas fa-phone me-2"></i>Journaux d'Appels</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-calls">
+                        <i class="fas fa-phone"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Historique des Appels</h4>
+                        <p class="artefact-description">Enregistrements détaillés de tous les appels entrants, sortants et manqués avec durées et timestamps.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/data/data/com.android.providers.contacts/</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/calllog.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">SQLite</span>
+                                </div>
+                            </div>
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Tables principales:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-table"></i>
+                                    <span class="tree-file">calls</span>
+                                    <span class="badge badge-artefact badge-system ms-2">Appels</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-table"></i>
+                                    <span class="tree-file">voicemail_archive</span>
+                                    <span class="badge badge-artefact badge-system ms-2">Messages vocaux</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="artefact-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-columns me-1"></i>
+                                <strong>Colonnes:</strong> number, date, duration, type, name
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-history me-1"></i>
+                                <strong>Rétention:</strong> Jusqu'à 500 appels
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SMS/MMS -->
+            <h3 class="section-title"><i class="fas fa-sms me-2"></i>SMS et MMS</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-sms">
+                        <i class="fas fa-sms"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Messages Textes et Multimédias</h4>
+                        <p class="artefact-description">Base de données complète des SMS envoyés/reçus et des MMS avec pièces jointes.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/data/data/com.android.providers.telephony/</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/mmssms.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">SQLite</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-file">databases/telephony.db</span>
+                                </div>
+                            </div>
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Stockage MMS:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.android.providers.telephony/</span>
+                                </div>
+                                <div class="ms-4">
+                                    <div class="path-item">
+                                        <i class="fas fa-image tree-media"></i>
+                                        <span class="tree-file">parts/ (pièces jointes)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- WhatsApp -->
+            <h3 class="section-title"><i class="fab fa-whatsapp me-2"></i>WhatsApp</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-whatsapp">
+                        <i class="fab fa-whatsapp"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>WhatsApp Complet</h4>
+                        <p class="artefact-description">Messages, médias, contacts et bases de données de sauvegarde WhatsApp.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/data/data/com.whatsapp/</span>
+                                <span class="badge badge-artefact badge-system ms-2">SYSTÈME</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/msgstore.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">Messages</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/wa.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">Contacts</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">databases/axolotl.db</span>
+                                    <span class="badge badge-artefact badge-database ms-2">Chiffrement</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/WhatsApp/</span>
+                                <span class="badge badge-artefact badge-external ms-2">SDCARD</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">Databases/msgstore.db.crypt14</span>
+                                    <span class="badge badge-artefact badge-database ms-2">Backup</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-images tree-media"></i>
+                                    <span class="tree-file">Media/WhatsApp Images/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-music tree-media"></i>
+                                    <span class="tree-file">Media/WhatsApp Audio/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-video tree-media"></i>
+                                    <span class="tree-file">Media/WhatsApp Video/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-media"></i>
+                                    <span class="tree-file">Media/WhatsApp Documents/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Images -->
+            <h3 class="section-title"><i class="fas fa-images me-2"></i>Images et Photos</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-images">
+                        <i class="fas fa-images"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Images et Photos</h4>
+                        <p class="artefact-description">Photos prises avec l'appareil photo, images téléchargées et captures d'écran.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/DCIM/</span>
+                                <span class="badge badge-artefact badge-external ms-2">SDCARD</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-camera tree-media"></i>
+                                    <span class="tree-file">Camera/ (photos appareil)</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-screenshot tree-media"></i>
+                                    <span class="tree-file">Screenshots/ (captures)</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/Pictures/</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-image tree-media"></i>
+                                    <span class="tree-file">Instagram/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-image tree-media"></i>
+                                    <span class="tree-file">Facebook/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-image tree-media"></i>
+                                    <span class="tree-file">Download/</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Applications spécifiques:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-file">/sdcard/Android/data/com.instagram.android/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-file">/sdcard/Android/data/com.facebook.katana/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Audio -->
+            <h3 class="section-title"><i class="fas fa-music me-2"></i>Fichiers Audio</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-audio">
+                        <i class="fas fa-music"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Enregistrements Audio et Musique</h4>
+                        <p class="artefact-description">Enregistrements vocaux, musique téléchargée, notifications et sonneries.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/Music/</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-music tree-media"></i>
+                                    <span class="tree-file">*.mp3, *.m4a, *.wav, *.aac</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/Recordings/</span>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/SoundRecorder/</span>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/Notifications/</span>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/Ringtones/</span>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Applications d'enregistrement:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-file">/sdcard/Android/data/com.samsung.android.app.voice/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-file">/sdcard/MIUI/sound_recorder/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Vidéos -->
+            <h3 class="section-title"><i class="fas fa-video me-2"></i>Vidéos</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-video">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Vidéos et Films</h4>
+                        <p class="artefact-description">Vidéos enregistrées avec l'appareil photo, films téléchargés et vidéos d'applications.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/DCIM/Camera/</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-video tree-media"></i>
+                                    <span class="tree-file">*.mp4, *.3gp, *.avi</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/sdcard/Movies/</span>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Applications vidéo:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-file">/sdcard/Android/data/com.google.android.youtube/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-file">/sdcard/Android/data/com.tiktok.android/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- WiFi -->
+            <h3 class="section-title"><i class="fas fa-wifi me-2"></i>Réseaux WiFi</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-wifi">
+                        <i class="fas fa-wifi"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Configurations WiFi</h4>
+                        <p class="artefact-description">SSID, mots de passe et configurations des réseaux WiFi connectés.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">/data/misc/wifi/</span>
+                                <span class="badge badge-artefact badge-system ms-2">SYSTÈME</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-file"></i>
+                                    <span class="tree-file">wpa_supplicant.conf</span>
+                                    <span class="badge badge-artefact badge-database ms-2">Configuration</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-file"></i>
+                                    <span class="tree-file">WifiConfigStore.xml</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Via Backup:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-database tree-db"></i>
+                                    <span class="tree-file">com.android.providers.settings/databases/settings.db</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="artefact-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-key me-1"></i>
+                                <strong>Contenu:</strong> SSID, PSK, configurations réseau
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-shield-alt me-1"></i>
+                                <strong>Sécurité:</strong> Accès root requis
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigateurs Web -->
+            <h3 class="section-title"><i class="fas fa-globe me-2"></i>Historique Web</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-browser">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Navigateurs et Historique Web</h4>
+                        <p class="artefact-description">Historique de navigation, cookies, favoris et cache des navigateurs installés.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Chrome (Google):</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.android.chrome/</span>
+                                </div>
+                                <div class="ms-4">
+                                    <div class="path-item">
+                                        <i class="fas fa-database tree-db"></i>
+                                        <span class="tree-file">app_chrome/Default/History</span>
+                                    </div>
+                                    <div class="path-item">
+                                        <i class="fas fa-database tree-db"></i>
+                                        <span class="tree-file">app_chrome/Default/Cookies</span>
+                                    </div>
+                                    <div class="path-item">
+                                        <i class="fas fa-database tree-db"></i>
+                                        <span class="tree-file">app_chrome/Default/Bookmarks</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Firefox (Mozilla):</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/org.mozilla.firefox/</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Samsung Internet:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.sec.android.app.sbrowser/</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Opera:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.opera.browser/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Emails -->
+            <h3 class="section-title"><i class="fas fa-envelope me-2"></i>Emails</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-emails">
+                        <i class="fas fa-envelope"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Clients de Messagerie</h4>
+                        <p class="artefact-description">Bases de données des clients email comme Gmail, Outlook et clients intégrés.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Gmail (Google):</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.google.android.gm/</span>
+                                </div>
+                                <div class="ms-4">
+                                    <div class="path-item">
+                                        <i class="fas fa-database tree-db"></i>
+                                        <span class="tree-file">databases/mailstore.*.db</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Email Android:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.android.email/</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Outlook (Microsoft):</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.microsoft.office.outlook/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Localisation -->
+            <h3 class="section-title"><i class="fas fa-map-marker-alt me-2"></i>Localisation et GPS</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Données de Géolocalisation</h4>
+                        <p class="artefact-description">Historique des positions GPS, réseaux WiFi détectés et données de localisation des applications.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Services de localisation:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.google.android.gms/</span>
+                                </div>
+                                <div class="ms-4">
+                                    <div class="path-item">
+                                        <i class="fas fa-database tree-db"></i>
+                                        <span class="tree-file">databases/gms_icing.db</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Applications avec GPS:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.google.android.apps.maps/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.waze/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/com.ubercab/</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Fichiers cache GPS:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-file"></i>
+                                    <span class="tree-file">/data/misc/location/gps/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-file"></i>
+                                    <span class="tree-file">/data/misc/location/location.cache</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Applications -->
+            <h3 class="section-title"><i class="fas fa-mobile-alt me-2"></i>Applications Installées</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-apps">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Applications et Données</h4>
+                        <p class="artefact-description">Répertoires des applications installées avec leurs données utilisateur et cache.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Applications système:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/system/app/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/system/priv-app/</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Applications utilisateur:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/app/ (fichiers APK)</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/ (données applications)</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Cache applications:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/dalvik-cache/</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/app-lib/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Logs Système -->
+            <h3 class="section-title"><i class="fas fa-file-alt me-2"></i>Logs Système</h3>
+            <div class="artefact-card">
+                <div class="d-flex align-items-start">
+                    <div class="artefact-icon icon-logs">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4>Logs et Diagnostics</h4>
+                        <p class="artefact-description">Fichiers de log système, crash reports et données de débogage.</p>
+                        
+                        <div class="file-tree">
+                            <div class="path-item">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Logs système:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-file"></i>
+                                    <span class="tree-file">/data/anr/ (ANR traces)</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-file"></i>
+                                    <span class="tree-file">/data/tombstones/ (crash reports)</span>
+                                </div>
+                                <div class="path-item">
+                                    <i class="fas fa-file tree-file"></i>
+                                    <span class="tree-file">/data/system/dropbox/</span>
+                                </div>
+                            </div>
+                            
+                            <div class="path-item mt-3">
+                                <i class="fas fa-folder tree-folder"></i>
+                                <span class="tree-path">Logs applications:</span>
+                            </div>
+                            <div class="ms-4">
+                                <div class="path-item">
+                                    <i class="fas fa-folder tree-folder"></i>
+                                    <span class="tree-path">/data/data/[package]/cache/logs/</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="btn btn-primary refresh-btn" onclick="refreshSystemInfo()">
+        <i class="fas fa-sync-alt me-2"></i>Actualiser
+    </button>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // Charger les infos système au démarrage
+        $(document).ready(function() {
+            loadSystemInfo();
+        });
+        
+        function loadSystemInfo() {
+            $.ajax({
+                url: '/get-system-info/',
+                method: 'GET',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#device-info').html(`<i class="fas fa-mobile-alt"></i> ${response.device_info}`);
+                        $('#device-model').text(response.device_model || 'Inconnu');
+                        $('#android-version').text(response.android_version || 'Inconnu');
+                        $('#storage-total').text(response.storage_total || 'N/A');
+                        $('#device-status').html(`<span class="text-success"><i class="fas fa-check-circle"></i> Connecté</span>`);
+                        
+                        // Ajouter l'ID de l'appareil dans l'info
+                        $('#device-info').append(` <small class="badge bg-info">${response.device_id}</small>`);
+                    } else {
+                        $('#device-status').html(`<span class="text-danger"><i class="fas fa-times-circle"></i> Non connecté</span>`);
+                    }
+                },
+                error: function() {
+                    $('#device-status').html(`<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Erreur connexion</span>`);
+                }
+            });
+        }
+        
+        function refreshSystemInfo() {
+            $('.refresh-btn').html('<i class="fas fa-spinner fa-spin me-2"></i>Actualisation...');
+            loadSystemInfo();
+            setTimeout(() => {
+                $('.refresh-btn').html('<i class="fas fa-sync-alt me-2"></i>Actualiser');
+            }, 1000);
+        }
+        
+        // Animation pour les cartes d'artefacts
+        $('.path-item').hover(
+            function() {
+                $(this).css('transform', 'translateX(5px)');
+            },
+            function() {
+                $(this).css('transform', 'translateX(0)');
+            }
+        );
+        
+        // Popup info pour les chemins
+        $('.path-item').click(function() {
+            const path = $(this).find('.tree-path, .tree-file').text();
+            const type = $(this).find('.badge').text();
+            
+            Swal.fire({
+                title: 'Chemin d\'accès',
+                html: `<div class="text-start">
+                    <p><strong>Chemin:</strong> <code>${path}</code></p>
+                    <p><strong>Type:</strong> <span class="badge bg-secondary">${type || 'Fichier'}</span></p>
+                    <p class="text-muted small mt-2">Ce chemin est utilisé par le système pour stocker les données correspondantes.</p>
+                </div>`,
+                icon: 'info',
+                confirmButtonText: 'OK',
+                width: '600px'
+            });
+        });
+    </script>
+    
+    <!-- SweetAlert pour les popups -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</body>
+</html>

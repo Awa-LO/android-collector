@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Collector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #333;
+        }
+        
+        .app-container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .app-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+        }
+        
+        .app-header h1 {
+            font-weight: 600;
+            font-size: 1.8rem;
+            margin: 0;
+        }
+        
+        .app-header p {
+            opacity: 0.9;
+            margin: 0.5rem 0 0;
+            font-size: 0.95rem;
+        }
+        
+        .terminal {
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            padding: 1.25rem;
+            border-radius: 6px;
+            height: 300px;
+            overflow-y: auto;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            border: 1px solid #dee2e6;
+        }
+        
+        .terminal-line {
+            margin: 0.2rem 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .command-line {
+            color: #4ecdc4;
+            font-weight: 500;
+        }
+        
+        .success-line {
+            color: #28a745;
+        }
+        
+        .error-line {
+            color: #dc3545;
+        }
+        
+        .file-line {
+            color: #ffc107;
+        }
+        
+        .btn-action {
+            background-color: #495057;
+            color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 0.6rem 1rem;
+            margin: 0.25rem;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+        }
+        
+        .btn-action:hover {
+            background-color: #6c757d;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .btn-action i {
+            margin-right: 8px;
+            width: 20px;
+            text-align: center;
+        }
+        
+        .btn-dump-full {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .btn-dump-full:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004494 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+        }
+        
+        .btn-view-files {
+            background-color: #6c757d;
+            color: white;
+            padding: 0.6rem 1.25rem;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .btn-view-files:hover {
+            background-color: #545b62;
+            color: white;
+            text-decoration: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .device-info {
+            background-color: #e9ecef;
+            padding: 0.75rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            border-left: 4px solid #007bff;
+        }
+        
+        .section-title {
+            color: #495057;
+            font-weight: 600;
+            margin: 1.5rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+        
+        .dump-section {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 6px;
+            margin: 1.5rem 0;
+            border: 1px solid #e9ecef;
+        }
+        
+        .dump-section h3 {
+            color: #495057;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        
+        .top-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .alert-custom {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-left: 4px solid #f39c12;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .alert-custom h5 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .status-connected {
+            color: #28a745;
+        }
+        
+        .status-disconnected {
+            color: #dc3545;
+        }
+        
+        .container-main {
+            padding: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .action-grid {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            }
+            
+            .container-main {
+                padding: 1rem;
+            }
+            
+            .top-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% csrf_token %}
+    <div class="app-container">
+        <div class="app-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1><i class="fas fa-mobile-alt me-2"></i>Android Collector</h1>
+                    <p>Logiciel de collecte d'artefacts Android</p>
+                </div>
+                <a href="/files/" class="btn-view-files">
+                    <i class="fas fa-folder-open me-2"></i>Fichiers collectés
+                </a>
+                        <!-- Ajoutez ce bouton à côté du bouton existant -->
+        <a href="/system-architecture/" class="btn-view-files me-2">
+            <i class="fas fa-sitemap me-2"></i>Architecture Système
+        </a>
+       
+            </div>
+        </div>
+        
+        <div class="container-main">
+            <div class="top-actions">
+                <div class="device-info flex-grow-1" id="device-info">
+                    <i class="fas fa-mobile-alt me-2"></i>
+                    <span id="device-status">En attente de connexion...</span>
+                </div>
+            </div>
+            
+            <!-- Section Dump Complet -->
+            <div class="dump-section">
+                <h3><i class="fas fa-database me-2"></i>Extraction Complète</h3>
+                <p class="mb-3 text-muted">Extraire toutes les données disponibles en une seule opération</p>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                    <button class="btn btn-dump-full" onclick="runFullDump()">
+                        <i class="fas fa-download me-2"></i>LANCER DUMP COMPLET
+                    </button>
+                </div>
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Inclut: Contacts, SMS, Appels, Applications, Logs, Médias, WhatsApp, WiFi, Historique Web
+                    </small>
+                </div>
+                <div class="alert-custom mt-3" style="display: none;" id="backup-warning">
+                    <h5><i class="fas fa-exclamation-triangle me-2"></i>IMPORTANT - Confirmations Requises</h5>
+                    <p class="mb-2">Plusieurs popups vont apparaître sur votre téléphone. Pour chacun :</p>
+                    <ol class="mb-2">
+                        <li><strong>NE PAS</strong> mettre de mot de passe</li>
+                        <li>Cliquer sur <strong>"Sauvegarder mes données"</strong></li>
+                        <li>Attendre la fin de chaque backup (peut prendre 5-10 minutes)</li>
+                    </ol>
+                    <p class="mb-0"><strong>Backups qui vont se lancer :</strong> Système complet, WhatsApp, Navigateurs, WiFi</p>
+                </div>
+            </div>
+            
+            <h3 class="section-title"><i class="fas fa-terminal me-2"></i>Terminal de sortie</h3>
+            <div class="terminal" id="terminal">
+                <div class="terminal-line">Bienvenue dans Android Collector</div>
+                <div class="terminal-line">Initialisation du système...</div>
+                <div class="terminal-line">Prêt à recevoir des commandes</div>
+            </div>
+            
+            <h3 class="section-title"><i class="fas fa-cogs me-2"></i>Actions de collecte individuelles</h3>
+            
+            <div class="alert alert-info mb-3">
+                <div class="d-flex align-items-start">
+                    <i class="fas fa-lightbulb me-2 mt-1"></i>
+                    <div>
+                        <strong>Nouvelles fonctionnalités sans ROOT :</strong>
+                        <ul class="mb-0 mt-1">
+                            <li><strong>WiFi</strong> : Mots de passe inclus via backup système</li>
+                            <li><strong>WhatsApp Complet</strong> : Messages + médias via backup</li>
+                            <li><strong>Historique Web</strong> : Chrome, Firefox, Opera via backups</li>
+                            <li><strong>Audio</strong> : Tous les enregistrements incluant .aac</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-grid">
+                <button class="btn btn-action" onclick="runAction('check_adb')">
+                    <i class="fas fa-check-circle"></i> Vérifier ADB
+                </button>
+                <button class="btn btn-action" onclick="runAction('backup_apps')">
+                    <i class="fas fa-save"></i> Backup Complet
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_logs')">
+                    <i class="fas fa-file-alt"></i> Extraire Logs
+                </button>
+                <button class="btn btn-action" onclick="runAction('list_calls')">
+                    <i class="fas fa-phone"></i> Lister Appels
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_contacts')">
+                    <i class="fas fa-address-book"></i> Contacts
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_images')">
+                    <i class="fas fa-images"></i> Images
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_audio')">
+                    <i class="fas fa-music"></i> Audio
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_videos')">
+                    <i class="fas fa-video"></i> Vidéos
+                </button>
+                <button class="btn btn-action" onclick="runAction('list_apps')">
+                    <i class="fas fa-list"></i> Applications
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_browser')">
+                    <i class="fas fa-globe"></i> Historique Web
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_emails')">
+                    <i class="fas fa-envelope"></i> Emails
+                </button>
+                <button class="btn btn-action" onclick="runAction('list_wifi')">
+                    <i class="fas fa-wifi"></i> Réseaux WiFi
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_sms')">
+                    <i class="fas fa-sms"></i> SMS
+                </button>
+                <button class="btn btn-action" onclick="runAction('extract_whatsapp')">
+                    <i class="fab fa-whatsapp"></i> WhatsApp Complet
+                </button>
+                <button class="btn btn-action" onclick="runAction('get_location')">
+                    <i class="fas fa-map-marker-alt"></i> Localisation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section Investigation Forensique -->
+<div class="dump-section mt-4">
+    <h3><i class="fas fa-shield-alt me-2"></i>Outils d'Investigation Forensique</h3>
+    <p class="mb-3 text-muted">Fonctionnalités avancées pour l'analyse numérique</p>
+    <div class="action-grid">
+        <a href="/evidence-chain/" class="btn btn-action">
+            <i class="fas fa-link"></i> Chaîne de Preuve
+        </a>
+        <a href="/generate-report/" class="btn btn-action">
+            <i class="fas fa-file-alt"></i> Rapports Forensiques
+        </a>
+    </div>
+</div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        function addTerminalLine(text, type = 'normal') {
+            const terminal = $('#terminal');
+            const lineClass = {
+                'command': 'command-line',
+                'success': 'success-line',
+                'error': 'error-line',
+                'file': 'file-line',
+                'normal': ''
+            }[type];
+            
+            const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            terminal.append(`<div class="terminal-line ${lineClass}">[${timestamp}] ${text}</div>`);
+            terminal.scrollTop(terminal[0].scrollHeight);
+        }
+
+        function runFullDump() {
+            // Afficher les instructions
+            $('#backup-warning').slideDown();
+            
+            setTimeout(() => {
+                if (confirm('IMPORTANT :\n\n• Plusieurs popups vont apparaître sur votre téléphone\n• Chaque backup prend 5-30 minutes\n• NE FERMEZ PAS cette fenêtre\n• NE DÉCONNECTEZ PAS le téléphone\n\nTemps total estimé : 30-90 minutes\n\nContinuer ?')) {
+                    addTerminalLine('⏱️ DUMP COMPLET LANCÉ', 'command');
+                    addTerminalLine('Cette opération peut prendre 30-90 minutes.', 'normal');
+                    addTerminalLine('Plusieurs confirmations seront nécessaires sur le téléphone.', 'normal');
+                    addTerminalLine('⚠️ NE FERMEZ PAS cette fenêtre !', 'error');
+                    addTerminalLine('', 'normal');
+                    runAction('full_dump');
+                } else {
+                    $('#backup-warning').slideUp();
+                }
+            }, 1000);
+        }
+
+        function runAction(action) {
+            const actionNames = {
+                'check_adb': 'Vérification ADB',
+                'full_dump': 'EXTRACTION COMPLÈTE',
+                'backup_apps': 'Backup complet (ADB)',
+                'extract_logs': 'Extraction des logs',
+                'list_calls': 'Liste des appels',
+                'extract_contacts': 'Extraction des contacts',
+                'extract_images': 'Extraction des images',
+                'extract_audio': 'Extraction des fichiers audio',
+                'extract_videos': 'Extraction des vidéos',
+                'list_apps': 'Liste des applications',
+                'extract_browser': 'Historique de navigation',
+                'extract_emails': 'Extraction des emails',
+                'list_wifi': 'Liste des réseaux WiFi',
+                'extract_sms': 'Extraction des SMS',
+                'extract_whatsapp': 'Extraction WhatsApp complète',
+                'get_location': 'Données de localisation'
+            };
+            
+            addTerminalLine(`▶ ${actionNames[action]} en cours...`, 'command');
+            
+            const csrfToken = $('[name=csrfmiddlewaretoken]').val();
+            
+            $.ajax({
+                url: '/execute/',
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                data: {
+                    action: action,
+                    csrfmiddlewaretoken: csrfToken
+                },
+                success: function(response) {
+                    if (response.device) {
+                        $('#device-status').html(`<span class="status-connected"><i class="fas fa-check-circle"></i> ${response.device}</span>`);
+                    }
+                    
+                    if (response.status === 'success') {
+                        addTerminalLine(`✓ ${response.message}`, 'success');
+                        
+                        if (response.output && response.output.trim()) {
+                            const lines = response.output.split('\n');
+                            lines.forEach(line => {
+                                if (line.trim()) addTerminalLine(line);
+                            });
+                        }
+                        
+                        if (response.file_path) {
+                            addTerminalLine(`📁 Fichier généré : ${response.file_path}`, 'file');
+                        }
+                    } else {
+                        addTerminalLine(`✗ ${response.message}`, 'error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    addTerminalLine(`✗ Erreur de communication avec le serveur: ${error}`, 'error');
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            // Vérifier la connexion ADB au démarrage
+            setTimeout(() => {
+                runAction('check_adb');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

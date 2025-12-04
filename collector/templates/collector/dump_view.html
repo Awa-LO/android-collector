@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ dump_name }} - Android Collector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #333;
+        }
+        
+        .app-container {
+            max-width: 1600px;
+            margin: 2rem auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .app-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+        }
+        
+        .app-header h1 {
+            font-weight: 600;
+            font-size: 1.8rem;
+            margin: 0;
+        }
+        
+        .app-header p {
+            opacity: 0.9;
+            margin: 0.5rem 0 0;
+            font-size: 0.95rem;
+        }
+        
+        .dump-info {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 1.5rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            border: 1px solid #dee2e6;
+        }
+        
+        .dump-info h2 {
+            font-weight: 600;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .dump-info p {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        
+        .file-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.2s;
+        }
+        
+        .file-card:hover {
+            border-color: #adb5bd;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transform: translateY(-1px);
+        }
+        
+        .file-icon {
+            font-size: 1.5rem;
+            width: 40px;
+            text-align: center;
+        }
+        
+        .file-icon.logs { color: #fd7e14; }
+        .file-icon.contacts { color: #0d6efd; }
+        .file-icon.calls { color: #198754; }
+        .file-icon.sms { color: #6f42c1; }
+        .file-icon.apps { color: #0dcaf0; }
+        .file-icon.location { color: #dc3545; }
+        .file-icon.image { color: #e83e8c; }
+        .file-icon.backup { color: #ffc107; }
+        .file-icon.audio { color: #20c997; }
+        .file-icon.video { color: #fd7e14; }
+        .file-icon.whatsapp { color: #25d366; }
+        .file-icon.whatsapp_encrypted { color: #128C7E; }
+        .file-icon.unknown { color: #adb5bd; }
+        
+        .file-name {
+            font-weight: 500;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+            color: #495057;
+        }
+        
+        .file-path {
+            color: #6c757d;
+            font-size: 0.8rem;
+            word-break: break-all;
+        }
+        
+        .badge-size {
+            background-color: #e9ecef;
+            color: #495057;
+            font-weight: 500;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        .modal-content {
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        .file-content {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: #212529;
+            border: 1px solid #dee2e6;
+        }
+        
+        .category-section {
+            margin: 2rem 0;
+        }
+        
+        .category-title {
+            color: #495057;
+            font-weight: 600;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e9ecef;
+            font-size: 1.1rem;
+        }
+        
+        .category-count {
+            background-color: #e9ecef;
+            color: #495057;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+        }
+        
+        .container-main {
+            padding: 2rem;
+        }
+        
+        .btn-action {
+            font-size: 0.85rem;
+            padding: 0.25rem 0.5rem;
+            margin: 0.1rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6c757d;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #adb5bd;
+        }
+        
+        audio {
+            width: 180px;
+            height: 30px;
+        }
+        
+        audio::-webkit-media-controls-panel {
+            background-color: #f8f9fa;
+        }
+        
+        @media (max-width: 768px) {
+            .container-main {
+                padding: 1rem;
+            }
+            
+            .file-card .row {
+                flex-direction: column;
+            }
+            
+            .file-card .col-md-3 {
+                margin-top: 0.5rem;
+            }
+            
+            .file-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="app-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1><i class="fas fa-database me-2"></i>{{ dump_name }}</h1>
+                    <p>Exploration de l'extraction complète</p>
+                </div>
+                <a href="/files/" class="btn btn-light">
+                    <i class="fas fa-arrow-left me-2"></i>Retour
+                </a>
+            </div>
+        </div>
+        
+        <div class="container-main">
+            <div class="dump-info">
+                <div class="row text-center">
+                    <div class="col-md-4 mb-3 mb-md-0">
+                        <h2><i class="fas fa-file me-2"></i>{{ total_files }}</h2>
+                        <p>Fichiers extraits</p>
+                    </div>
+                    <div class="col-md-4 mb-3 mb-md-0">
+                        <h2><i class="fas fa-layer-group me-2"></i>{{ files|length }}</h2>
+                        <p>Artefacts collectés</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h2><i class="fas fa-check-circle me-2"></i></h2>
+                        <p>Extraction réussie</p>
+                    </div>
+                </div>
+            </div>
+            
+            {% if files %}
+                <!-- Grouper les fichiers par catégorie -->
+                {% regroup files by type as files_by_type %}
+                
+                {% for group in files_by_type %}
+                <div class="category-section">
+                    <h3 class="category-title">
+                        {% if group.grouper == 'contacts' %}
+                            <i class="fas fa-address-book me-2"></i>Contacts
+                        {% elif group.grouper == 'sms' %}
+                            <i class="fas fa-sms me-2"></i>SMS
+                        {% elif group.grouper == 'calls' %}
+                            <i class="fas fa-phone me-2"></i>Appels
+                        {% elif group.grouper == 'apps' %}
+                            <i class="fas fa-mobile-alt me-2"></i>Applications
+                        {% elif group.grouper == 'logs' %}
+                            <i class="fas fa-file-alt me-2"></i>Logs Système
+                        {% elif group.grouper == 'location' %}
+                            <i class="fas fa-map-marker-alt me-2"></i>Localisation
+                        {% elif group.grouper == 'image' %}
+                            <i class="fas fa-image me-2"></i>Images
+                        {% elif group.grouper == 'audio' %}
+                            <i class="fas fa-music me-2"></i>Fichiers Audio
+                        {% elif group.grouper == 'video' %}
+                            <i class="fas fa-video me-2"></i>Fichiers Vidéo
+                        {% elif group.grouper == 'whatsapp' %}
+                            <i class="fab fa-whatsapp me-2"></i>WhatsApp (Décodé)
+                        {% elif group.grouper == 'whatsapp_encrypted' %}
+                            <i class="fab fa-whatsapp me-2"></i>WhatsApp (Chiffré)
+                        {% elif group.grouper == 'backup' %}
+                            <i class="fas fa-save me-2"></i>Fichiers Backup
+                        {% else %}
+                            <i class="fas fa-file me-2"></i>Autres Fichiers
+                        {% endif %}
+                        <span class="category-count">{{ group.list|length }}</span>
+                    </h3>
+                    
+                    {% for file in group.list %}
+                    <div class="file-card">
+                        <div class="row align-items-center">
+                            <div class="col-md-1 text-center">
+                                <i class="fas fa-file file-icon {{ file.type }}"></i>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="file-name">{{ file.name }}</div>
+                                <div class="file-path">{{ file.path }}</div>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <span class="badge-size">{{ file.size_readable }}</span>
+                            </div>
+                            <div class="col-md-3 text-end">
+                                <div class="file-actions">
+                                    {% if file.type == 'image' %}
+                                        <button class="btn btn-sm btn-info btn-action" onclick="viewImage('{{ file.url }}', '{{ file.name }}')">
+                                            <i class="fas fa-eye"></i> Voir
+                                        </button>
+                                    {% elif file.type == 'backup' %}
+                                        <button class="btn btn-sm btn-warning btn-action" onclick="decodeBackup('{{ dump_name }}/{{ file.path }}', '{{ file.name }}')">
+                                            <i class="fas fa-unlock"></i> Décoder
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary btn-action" onclick="showDecodeHelp()">
+                                            <i class="fas fa-question-circle"></i>
+                                        </button>
+                                    {% elif file.type == 'whatsapp_encrypted' %}
+                                        <button class="btn btn-sm btn-success btn-action" onclick="decodeWhatsApp('{{ dump_name }}/{{ file.path }}', '{{ file.name }}')">
+                                            <i class="fab fa-whatsapp"></i> Décrypter
+                                        </button>
+                                    {% elif file.type == 'audio' %}
+                                        <audio controls>
+                                            <source src="{{ file.url }}" type="{{ file.audio_type }}">
+                                        </audio>
+                                    {% elif file.type == 'video' %}
+                                        <button class="btn btn-sm btn-info btn-action" onclick="viewVideo('{{ file.url }}', '{{ file.name }}')">
+                                            <i class="fas fa-play"></i> Lire
+                                        </button>
+                                    {% elif file.type != 'backup' and file.type != 'whatsapp_encrypted' %}
+                                        <button class="btn btn-sm btn-primary btn-action" onclick="viewFile('{{ dump_name }}/{{ file.path }}', '{{ file.name }}')">
+                                            <i class="fas fa-eye"></i> Voir
+                                        </button>
+                                    {% endif %}
+                                    <a href="{{ file.url }}" download class="btn btn-sm btn-success btn-action">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h4 class="mt-3">Aucun fichier trouvé</h4>
+                    <p class="text-muted">Ce dump ne contient aucun fichier extrait</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal pour afficher le contenu -->
+    <div class="modal fade" id="fileModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Contenu du fichier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="fileContentDisplay" class="file-content">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                            <p class="mt-2">Chargement du contenu...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function viewFile(filePath, fileName) {
+            $('#modalTitle').text(fileName);
+            $('#fileContentDisplay').html(`
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2">Chargement et analyse du contenu...</p>
+                </div>
+            `);
+            
+            const modal = new bootstrap.Modal(document.getElementById('fileModal'));
+            modal.show();
+            
+            $.ajax({
+                url: `/view/${filePath}/`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.parsed_content) {
+                        $('#fileContentDisplay').html(`
+                            <div class="mb-3">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary active" onclick="showParsedView()">
+                                        <i class="fas fa-table me-1"></i>Vue structurée
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="showRawView()">
+                                        <i class="fas fa-code me-1"></i>Vue brute
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="parsedContent">${response.parsed_content}</div>
+                            <div id="rawContent" style="display: none;">
+                                <pre class="m-0">${escapeHtml(response.content)}</pre>
+                            </div>
+                        `);
+                    } else {
+                        $('#fileContentDisplay').html(`<pre class="m-0">${escapeHtml(response.content)}</pre>`);
+                    }
+                },
+                error: function(xhr) {
+                    $('#fileContentDisplay').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Erreur lors du chargement: ${xhr.responseJSON?.error || 'Erreur inconnue'}
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function showParsedView() {
+            $('#parsedContent').show();
+            $('#rawContent').hide();
+            $('.btn-group .btn').removeClass('active');
+            $('.btn-group .btn:first-child').addClass('active');
+        }
+
+        function showRawView() {
+            $('#parsedContent').hide();
+            $('#rawContent').show();
+            $('.btn-group .btn').removeClass('active');
+            $('.btn-group .btn:last-child').addClass('active');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function viewImage(imageUrl, imageName) {
+            $('#modalTitle').text(imageName);
+            $('#fileContentDisplay').html(`
+                <div class="text-center">
+                    <img src="${imageUrl}" class="img-fluid rounded" alt="${imageName}" style="max-height: 500px;">
+                </div>
+            `);
+            
+            const modal = new bootstrap.Modal(document.getElementById('fileModal'));
+            modal.show();
+        }
+
+        function decodeWhatsApp(filePath, fileName) {
+            $('#modalTitle').text('Décryptage WhatsApp');
+            $('#fileContentDisplay').html(`
+                <div class="alert alert-info">
+                    <h5><i class="fab fa-whatsapp me-2"></i>Décryptage de ${fileName}</h5>
+                    <p>Ce fichier est une sauvegarde WhatsApp chiffrée (crypt14/crypt15).</p>
+                    
+                    <h6 class="mt-3">Prérequis :</h6>
+                    <ul>
+                        <li>Le fichier <strong>"key"</strong> doit être dans le même dossier</li>
+                        <li>Ce fichier provient du backup WhatsApp décodé</li>
+                    </ul>
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-success" onclick="proceedDecodeWhatsApp('${filePath}')">
+                            <i class="fas fa-unlock me-1"></i> Décrypter maintenant
+                        </button>
+                        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            Annuler
+                        </button>
+                    </div>
+                    
+                    <hr class="my-3">
+                    <p class="small text-muted mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Le fichier "key" est extrait automatiquement quand vous décodez le backup WhatsApp complet
+                    </p>
+                </div>
+            `);
+            
+            const modal = new bootstrap.Modal(document.getElementById('fileModal'));
+            modal.show();
+        }
+
+        function proceedDecodeWhatsApp(filePath) {
+            $('#modalTitle').text('Décryptage WhatsApp en cours');
+            $('#fileContentDisplay').html(`
+                <div class="text-center py-4">
+                    <div class="spinner-border text-success mb-3" role="status"></div>
+                    <p><i class="fab fa-whatsapp me-2"></i>Décryptage en cours...</p>
+                </div>
+            `);
+            
+            $.ajax({
+                url: `/decode-whatsapp/${filePath}/`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#fileContentDisplay').html(`
+                            <div class="alert alert-success">
+                                <h5><i class="fas fa-check-circle me-2"></i>WhatsApp décrypté !</h5>
+                                <p>${response.message}</p>
+                                <p class="mb-2"><strong>Fichier décrypté:</strong> ${response.output_file}</p>
+                                
+                                <hr class="my-3">
+                                <h6>Comment lire les messages :</h6>
+                                <ol>
+                                    <li>Téléchargez le fichier décrypté</li>
+                                    <li>Ouvrez avec <strong>DB Browser for SQLite</strong></li>
+                                    <li>Table principale : <code>message</code></li>
+                                    <li>Colonnes importantes : <code>key_remote_jid</code> (contact), <code>data</code> (message), <code>timestamp</code></li>
+                                </ol>
+                                
+                                <button class="btn btn-primary" onclick="location.reload()">
+                                    <i class="fas fa-sync me-1"></i>Actualiser
+                                </button>
+                            </div>
+                        `);
+                    } else {
+                        $('#fileContentDisplay').html(`
+                            <div class="alert alert-danger">
+                                <h5><i class="fas fa-exclamation-triangle me-2"></i>Échec du décryptage</h5>
+                                <p>${response.message}</p>
+                                
+                                <h6 class="mt-3">Solutions :</h6>
+                                <ul>
+                                    <li><strong>Clé manquante :</strong> Décodez d'abord le backup WhatsApp complet</li>
+                                    <li><strong>Module manquant :</strong> Installez pycryptodome avec <code>pip install pycryptodome</code></li>
+                                    <li><strong>Clé incorrecte :</strong> Assurez-vous que le fichier "key" provient du bon appareil</li>
+                                </ul>
+                            </div>
+                        `);
+                    }
+                },
+                error: function(xhr) {
+                    $('#fileContentDisplay').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Erreur: ${xhr.responseJSON?.message || 'Erreur inconnue'}
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function viewVideo(videoUrl, videoName) {
+            $('#modalTitle').text(videoName);
+            $('#fileContentDisplay').html(`
+                <div class="text-center">
+                    <video controls class="w-100 rounded" style="max-height: 500px;">
+                        <source src="${videoUrl}" type="video/mp4">
+                        Votre navigateur ne supporte pas la lecture vidéo.
+                    </video>
+                </div>
+            `);
+            
+            const modal = new bootstrap.Modal(document.getElementById('fileModal'));
+            modal.show();
+        }
+
+        function decodeBackup(filePath, fileName) {
+            $('#modalTitle').text('Décodage du backup');
+            $('#fileContentDisplay').html(`
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-triangle me-2"></i>Le fichier ${fileName} est-il chiffré ?</h5>
+                    <p><strong>Un backup est "chiffré" si vous avez mis un mot de passe lors de sa création sur le téléphone.</strong></p>
+                    
+                    <h6 class="mt-3">Si vous N'AVEZ PAS mis de mot de passe :</h6>
+                    <p>Le décodage va fonctionner. Cliquez sur "Décoder maintenant".</p>
+                    
+                    <h6 class="mt-3">Si vous AVEZ mis un mot de passe :</h6>
+                    <p>Le décodage va échouer. Vous devez :</p>
+                    <ol>
+                        <li>Refaire le backup depuis le début</li>
+                        <li>Quand le popup apparaît sur le téléphone : <strong>NE PAS cocher "Chiffrer"</strong></li>
+                        <li>Laisser le champ mot de passe VIDE</li>
+                        <li>Cliquer sur "Sauvegarder mes données"</li>
+                    </ol>
+                    
+                    <hr class="my-3">
+                    <div>
+                        <button class="btn btn-success" onclick="proceedDecode('${filePath}')">
+                            <i class="fas fa-unlock me-1"></i>Décoder maintenant
+                        </button>
+                        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            Annuler
+                        </button>
+                    </div>
+                </div>
+            `);
+            
+            const modal = new bootstrap.Modal(document.getElementById('fileModal'));
+            modal.show();
+        }
+
+        function proceedDecode(filePath) {
+            $('#modalTitle').text('Décodage du backup');
+            $('#fileContentDisplay').html(`
+                <div class="text-center py-4">
+                    <div class="spinner-border text-warning mb-3" role="status"></div>
+                    <p>Décodage en cours... Veuillez patienter.</p>
+                </div>
+            `);
+            
+            $.ajax({
+                url: `/decode/${filePath}/`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#fileContentDisplay').html(`
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i>${response.message}
+                                <div class="mt-2">
+                                    <strong>Dossier:</strong> ${response.output_folder}
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" onclick="location.reload()">
+                                        <i class="fas fa-sync me-1"></i>Actualiser la page
+                                    </button>
+                                </div>
+                            </div>
+                        `);
+                    } else {
+                        $('#fileContentDisplay').html(`
+                            <div class="alert alert-danger">
+                                <h5><i class="fas fa-exclamation-triangle me-2"></i>Échec du décodage</h5>
+                                <p><strong>Erreur:</strong> ${response.message}</p>
+                                
+                                <h6 class="mt-3">Solutions :</h6>
+                                <ol>
+                                    <li><strong>Le backup est chiffré :</strong> Refaire le backup SANS mot de passe</li>
+                                    <li><strong>Fichier corrompu :</strong> Refaire le backup</li>
+                                    <li><strong>Backup incomplet :</strong> Attendre la fin du backup sur le téléphone</li>
+                                </ol>
+                                
+                                <button class="btn btn-outline-primary mt-2" onclick="showDecodeHelp()">
+                                    <i class="fas fa-question-circle me-1"></i>Comment refaire un backup non chiffré
+                                </button>
+                            </div>
+                        `);
+                    }
+                },
+                error: function(xhr) {
+                    $('#fileContentDisplay').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Erreur lors du décodage: ${xhr.responseJSON?.message || 'Erreur inconnue'}
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function showDecodeHelp() {
+            $('#modalTitle').text('Guide : Créer un backup non chiffré');
+            $('#fileContentDisplay').html(`
+                <div class="alert alert-info">
+                    <h5>Comment créer un backup décodable (sans chiffrement)</h5>
+                    
+                    <h6 class="mt-3">Étape 1 : Lancer le backup</h6>
+                    <p>Depuis l'interface Android Collector, cliquez sur l'action souhaitée</p>
+                    
+                    <h6 class="mt-3">Étape 2 : Sur votre téléphone</h6>
+                    <p>Un popup comme celui-ci va apparaître :</p>
+                    <div class="bg-light p-3 rounded border">
+                        <pre class="m-0">
+┌─────────────────────────────────────┐
+│  Sauvegarder mes données            │
+│                                     │
+│  [x] Inclure les données d'apps    │
+│  [ ] Chiffrer la sauvegarde        │ ⬅️ NE PAS COCHER
+│                                     │
+│  Mot de passe: ____________        │ ⬅️ LAISSER VIDE
+│                                     │
+│  [Annuler]  [Sauvegarder]         │
+└─────────────────────────────────────┘
+                        </pre>
+                    </div>
+                    
+                    <h6 class="mt-3">À FAIRE :</h6>
+                    <ul>
+                        <li>✅ Cocher "Inclure les données d'apps"</li>
+                        <li>✅ <strong>NE PAS</strong> cocher "Chiffrer la sauvegarde"</li>
+                        <li>✅ Laisser le champ "Mot de passe" <strong>VIDE</strong></li>
+                        <li>✅ Cliquer sur "Sauvegarder mes données"</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">À NE PAS FAIRE :</h6>
+                    <ul>
+                        <li>❌ Cocher "Chiffrer"</li>
+                        <li>❌ Mettre un mot de passe</li>
+                        <li>❌ Annuler le backup</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Temps d'attente</h6>
+                    <p>Chaque backup peut prendre 5-15 minutes selon la quantité de données.</p>
+                </div>
+            `);
+            
+            const modal = new bootstrap.Modal(document.getElementById('fileModal'));
+            modal.show();
+        }
+    </script>
+</body>
+</html>

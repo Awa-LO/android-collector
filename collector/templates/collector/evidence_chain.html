@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chaîne de Preuve - Android Collector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .evidence-card { margin-bottom: 1rem; border-left: 4px solid #28a745; }
+        .evidence-card.fail { border-left-color: #dc3545; }
+        .hash-display { font-family: monospace; font-size: 0.85rem; background: #f8f9fa; padding: 0.5rem; border-radius: 4px; }
+        .timestamp { color: #6c757d; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1><i class="fas fa-link me-2"></i>Chaîne de Preuve Numérique</h1>
+        <p class="text-muted">Journal d'intégrité des preuves collectées</p>
+        
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3>{{ stats.total_entries }}</h3>
+                        <p class="text-muted mb-0">Entrées</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 class="text-success">{{ stats.total_entries|add:"-stats.files_with_errors" }}</h3>
+                        <p class="text-muted mb-0">Intègres</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 class="text-danger">{{ stats.files_with_errors }}</h3>
+                        <p class="text-muted mb-0">Erreurs</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5>Dernière mise à jour</h5>
+                        <p class="text-muted mb-0">{{ stats.last_update|default:"N/A" }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Journal des Preuves</h5>
+            </div>
+            <div class="card-body">
+                {% if evidence_chain %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date/Heure</th>
+                                    <th>Fichier</th>
+                                    <th>Hash MD5</th>
+                                    <th>Hash SHA256</th>
+                                    <th>Intégrité</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for evidence in evidence_chain %}
+                                <tr class="{% if evidence.integrity_check == 'FAIL' %}table-danger{% endif %}">
+                                    <td class="timestamp">{{ evidence.timestamp }}</td>
+                                    <td><strong>{{ evidence.filename }}</strong><br><small>{{ evidence.file_size_readable }}</small></td>
+                                    <td><code class="hash-display">{{ evidence.md5|truncatechars:20 }}</code></td>
+                                    <td><code class="hash-display">{{ evidence.sha256|truncatechars:20 }}</code></td>
+                                    <td>
+                                        {% if evidence.integrity_check == 'PASS' %}
+                                            <span class="badge bg-success"><i class="fas fa-check"></i> PASS</span>
+                                        {% else %}
+                                            <span class="badge bg-danger"><i class="fas fa-times"></i> FAIL</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="verifyIntegrity('{{ evidence.full_path }}')">
+                                            <i class="fas fa-shield-alt"></i> Vérifier
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-database fa-3x text-muted mb-3"></i>
+                        <h5>Aucune preuve enregistrée</h5>
+                        <p class="text-muted">La chaîne de preuve sera créée automatiquement lors des extractions.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function verifyIntegrity(filePath) {
+            $.ajax({
+                url: `/verify-integrity/${filePath}/`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        alert('✅ Intégrité vérifiée\nHash original: ' + response.original_hash.substring(0, 20) + '...');
+                    } else {
+                        alert('⚠️ Altération détectée!\n' + response.message);
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
