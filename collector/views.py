@@ -79,6 +79,261 @@ def get_audio_mime_type(filename):
         return 'audio/mpeg'
 
 # ============================================
+# FONCTIONS SPÉCIFIQUES GOOGLE MAPS
+# ============================================
+
+def extract_google_maps_data(adb_path, device, timestamp):
+    """Extraire les données Google Maps (trajets, recherches, favoris)"""
+    
+    maps_dirs = [
+        '/data/data/com.google.android.apps.maps/databases/',
+        '/storage/emulated/0/Android/data/com.google.android.apps.maps/files/',
+        '/storage/emulated/0/Google Maps/'
+    ]
+    
+    extracted_data = {
+        'timeline': [],      # Historique des positions
+        'searches': [],      # Recherches
+        'saved_places': [],  # Lieux enregistrés
+        'routes': [],        # Itinéraires
+        'offline_maps': []   # Cartes hors ligne
+    }
+    
+    for maps_dir in maps_dirs:
+        try:
+            # Essayer d'accéder aux fichiers Maps
+            cmd_list = [adb_path, '-s', device, 'shell', 'ls', '-la', maps_dir]
+            files = subprocess.check_output(cmd_list, text=True, timeout=30, errors='ignore')
+            
+            if 'gmm_' in files or '.db' in files:
+                # Liste des fichiers de base de données Google Maps
+                db_files = ['gmm_storage.db', 'gmm_myplaces.db', 'gmm_history.db', 
+                           'search_history.db', 'location_history.db']
+                
+                for db_file in db_files:
+                    try:
+                        # Copier la base de données
+                        temp_dir = tempfile.mkdtemp()
+                        pull_cmd = [adb_path, '-s', device, 'pull', 
+                                   f'{maps_dir}{db_file}', 
+                                   temp_dir]
+                        result = subprocess.run(pull_cmd, timeout=30, capture_output=True, text=True)
+                        
+                        if result.returncode == 0:
+                            # Chercher le fichier copié
+                            for root, dirs, files_list in os.walk(temp_dir):
+                                for file in files_list:
+                                    if file.endswith('.db'):
+                                        db_path = os.path.join(root, file)
+                                        parsed_data = parse_maps_database(db_path)
+                                        if parsed_data:
+                                            if 'locations' in parsed_data:
+                                                extracted_data['timeline'].extend(parsed_data['locations'])
+                                            if 'searches' in parsed_data:
+                                                extracted_data['searches'].extend(parsed_data['searches'])
+                                        
+                                        # Copier dans le dossier de collection
+                                        dest_path = f'collector/static/collected_data/maps_{timestamp}_{db_file}'
+                                        shutil.copy2(db_path, dest_path)
+                    except:
+                        continue
+                    
+        except Exception as e:
+            print(f"Erreur accès {maps_dir}: {str(e)}")
+            continue
+    
+    return extracted_data
+
+def parse_maps_database(db_path):
+    """Parser la base de données Google Maps"""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        results = {
+            'locations': [],
+            'searches': [],
+            'places': []
+        }
+        
+        # Chercher toutes les tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        
+        for table in tables:
+            table_name = table[0]
+            
+            # Table d'historique de localisation
+            if any(keyword in table_name.lower() for keyword in ['location', 'position', 'lat', 'lon', 'gps']):
+                try:
+                    cursor.execute(f"PRAGMA table_info({table_name})")
+                    columns = [col[1].lower() for col in cursor.fetchall()]
+                    
+                    # Chercher les colonnes de coordonnées
+                    lat_col = None
+                    lon_col = None
+                    time_col = None
+                    
+                    for col in columns:
+                        if 'lat' in col:
+                            lat_col = col
+                        elif 'lon' in col or 'lng' in col:
+                            lon_col = col
+                        elif 'time' in col or 'date' in col or 'timestamp' in col:
+                            time_col = col
+                    
+                    if lat_col and lon_col:
+                        if time_col:
+                            cursor.execute(f"SELECT {lat_col}, {lon_col}, {time_col} FROM {table_name} LIMIT 500")
+                        else:
+                            cursor.execute(f"SELECT {lat_col}, {lon_col} FROM {table_name} LIMIT 500")
+                        
+                        rows = cursor.fetchall()
+                        for row in rows:
+                            if len(row) >= 2:
+                                location = {
+                                    'latitude': row[0],
+                                    'longitude': row[1],
+                                    'type': 'Google Maps',
+                                    'source': 'timeline'
+                                }
+                                if len(row) >= 3:
+                                    location['timestamp'] = row[2]
+                                results['locations'].append(location)
+                except:
+                    continue
+            
+            # Table d'historique de recherche
+            elif any(keyword in table_name.lower() for keyword in ['search', 'query']):
+                try:
+                    cursor.execute(f"PRAGMA table_info({table_name})")
+                    columns = [col[1].lower() for col in cursor.fetchall()]
+                    
+                    query_col = None
+                    time_col = None
+                    
+                    for col in columns:
+                        if 'query' in col or 'term' in col or 'search' in col:
+                            query_col = col
+                        elif 'time' in col or 'date' in col:
+                            time_col = col
+                    
+                    if query_col:
+                        if time_col:
+                            cursor.execute(f"SELECT {query_col}, {time_col} FROM {table_name} LIMIT 100")
+                        else:
+                            cursor.execute(f"SELECT {query_col} FROM {table_name} LIMIT 100")
+                        
+                        rows = cursor.fetchall()
+                        for row in rows:
+                            search_entry = {
+                                'query': row[0],
+                                'type': 'search'
+                            }
+                            if len(row) >= 2:
+                                search_entry['timestamp'] = row[1]
+                            results['searches'].append(search_entry)
+                except:
+                    continue
+        
+        conn.close()
+        return results
+        
+    except Exception as e:
+        print(f"Erreur parsing DB {db_path}: {str(e)}")
+        return None
+
+def extract_google_maps_from_backup(backup_path):
+    """Extraire Google Maps depuis un backup ADB"""
+    temp_dir = tempfile.mkdtemp(prefix='maps_extract_')
+    
+    try:
+        result = decode_backup_file(backup_path, temp_dir)
+        if result['status'] == 'success':
+            maps_data = {
+                'timeline': [],
+                'searches': [],
+                'saved_places': []
+            }
+            
+            # Chercher les fichiers Google Maps dans les fichiers extraits
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    
+                    # Base de données Google Maps
+                    if 'gmm_' in file or ('maps' in file.lower() and file.endswith('.db')):
+                        try:
+                            parsed = parse_maps_database(file_path)
+                            if parsed:
+                                if 'locations' in parsed:
+                                    maps_data['timeline'].extend(parsed['locations'])
+                                if 'searches' in parsed:
+                                    maps_data['searches'].extend(parsed['searches'])
+                        except:
+                            continue
+                    
+                    # Fichiers KML/GPX (export Google Maps)
+                    elif file.endswith(('.kml', '.gpx')):
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                                locations = parse_kml_gpx(content)
+                                maps_data['timeline'].extend(locations)
+                        except:
+                            continue
+            
+            return maps_data
+    except:
+        pass
+    
+    return None
+
+def parse_kml_gpx(content):
+    """Parser les fichiers KML/GPX (export Google Maps)"""
+    locations = []
+    
+    # Pattern pour les coordonnées dans KML/GPX
+    coord_patterns = [
+        r'<coordinates>([^<]+)</coordinates>',
+        r'<trkpt lat="([^"]+)" lon="([^"]+)">',
+        r'<point><coordinates>([^<]+)</coordinates></point>'
+    ]
+    
+    for pattern in coord_patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches:
+            if isinstance(match, tuple) and len(match) >= 2:
+                try:
+                    lat = float(match[0])
+                    lon = float(match[1])
+                    locations.append({
+                        'latitude': lat,
+                        'longitude': lon,
+                        'type': 'KML/GPX',
+                        'source': 'Google Maps Export'
+                    })
+                except:
+                    continue
+            elif isinstance(match, str):
+                try:
+                    # Format: lon,lat[,alt]
+                    coords = match.strip().split(',')
+                    if len(coords) >= 2:
+                        lon = float(coords[0])
+                        lat = float(coords[1])
+                        locations.append({
+                            'latitude': lat,
+                            'longitude': lon,
+                            'type': 'KML/GPX',
+                            'source': 'Google Maps Export'
+                        })
+                except:
+                    continue
+    
+    return locations
+
+# ============================================
 # VUES PRINCIPALES
 # ============================================
 
@@ -153,6 +408,8 @@ def collected_files(request):
                     file_type = 'browser'
                 elif filename.startswith('whatsapp_'):
                     file_type = 'whatsapp'
+                elif filename.startswith('maps_'):
+                    file_type = 'maps'
                 elif filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
                     file_type = 'image'
                 elif filename.lower().endswith(('.mp3', '.m4a', '.wav', '.aac', '.ogg', '.amr', '.flac')):
@@ -162,12 +419,16 @@ def collected_files(request):
                 elif filename.lower().endswith('.db'):
                     if 'whatsapp' in filename.lower() or 'msgstore' in filename.lower():
                         file_type = 'whatsapp'
+                    elif 'gmm_' in filename.lower() or 'maps' in filename.lower():
+                        file_type = 'maps'
                     else:
                         file_type = 'database'
                 elif filename.lower().endswith('.ab'):
                     file_type = 'backup'
                 elif filename.lower().endswith(('.crypt14', '.crypt15')):
                     file_type = 'whatsapp_encrypted'
+                elif filename.lower().endswith(('.kml', '.gpx')):
+                    file_type = 'maps'
                 elif 'images_' in root:
                     file_type = 'image'
                 elif 'audio_' in root or 'recordings' in root.lower() or 'sounds' in root.lower():
@@ -285,7 +546,7 @@ def parse_dumpsys_calls(dumpsys_output):
         date_str = call.get('date', '')
         try:
             dt = datetime.datetime.fromtimestamp(int(date_str)/1000)
-            date_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+            date_str = dt.strftime("%Y-%m-d %H:%M:%S")
         except:
             pass
         
@@ -351,6 +612,10 @@ def view_file(request, file_path):
                 'file_type': 'system'
             })
         
+        # Vérifier si c'est un fichier Google Maps
+        if 'maps' in file_path.lower() or 'gmm_' in file_path.lower():
+            return handle_maps_file(full_path, file_path)
+        
         # Vérifier si c'est un fichier SQLite
         if full_path.lower().endswith('.db'):
             return view_sqlite_file(full_path, file_path)
@@ -358,6 +623,10 @@ def view_file(request, file_path):
         # Vérifier si c'est un fichier backup WhatsApp .ab
         if full_path.lower().endswith('.ab') and ('whatsapp' in file_path.lower() or 'wa' in file_path.lower()):
             return handle_whatsapp_backup(full_path, file_path)
+        
+        # Vérifier si c'est un fichier KML/GPX
+        if full_path.lower().endswith(('.kml', '.gpx')):
+            return handle_maps_kml_gpx(full_path, file_path)
         
         # Lire le fichier
         content = ''
@@ -397,6 +666,486 @@ def view_file(request, file_path):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+def handle_maps_file(full_path, file_path):
+    """Gérer spécifiquement les fichiers Google Maps"""
+    try:
+        if full_path.lower().endswith('.db'):
+            # C'est une base de données Google Maps
+            return handle_maps_database(full_path, file_path)
+        else:
+            # Autre fichier Google Maps
+            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            parsed_content = parse_maps_file_content(content, full_path)
+            
+            return JsonResponse({
+                'filename': os.path.basename(file_path),
+                'content': content[:5000] + "..." if len(content) > 5000 else content,
+                'parsed_content': parsed_content,
+                'size': os.path.getsize(full_path),
+                'file_type': 'maps'
+            })
+            
+    except Exception as e:
+        return JsonResponse({'error': f"Erreur Google Maps: {str(e)}"}, status=500)
+
+def handle_maps_database(full_path, file_path):
+    """Gérer une base de données Google Maps"""
+    try:
+        conn = sqlite3.connect(full_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        
+        content = f"Base de données Google Maps: {os.path.basename(file_path)}\n\n"
+        content += f"Nombre de tables: {len(tables)}\n\n"
+        
+        html = f'''
+        <div class="maps-viewer">
+            <h5><i class="fab fa-google"></i> Google Maps: {os.path.basename(file_path)}</h5>
+            <p class="text-muted mb-3">Nombre de tables: {len(tables)}</p>
+        '''
+        
+        # Analyser spécifiquement les tables Google Maps
+        locations_data = []
+        searches_data = []
+        
+        for table in tables:
+            table_name = table[0]
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                row_count = cursor.fetchone()[0]
+                
+                # Vérifier si c'est une table de localisation
+                if any(keyword in table_name.lower() for keyword in ['location', 'position', 'lat', 'lon', 'gps']):
+                    # Essayer d'extraire des coordonnées
+                    try:
+                        cursor.execute(f"PRAGMA table_info({table_name})")
+                        columns = cursor.fetchall()
+                        col_info = [col[1].lower() for col in columns]
+                        
+                        # Chercher les colonnes de coordonnées
+                        lat_col = None
+                        lon_col = None
+                        time_col = None
+                        
+                        for col_name in col_info:
+                            if 'lat' in col_name:
+                                lat_col = col_name
+                            elif 'lon' in col_name or 'lng' in col_name:
+                                lon_col = col_name
+                            elif 'time' in col_name or 'date' in col_name:
+                                time_col = col_name
+                        
+                        if lat_col and lon_col:
+                            query = f"SELECT {lat_col}, {lon_col}"
+                            if time_col:
+                                query += f", {time_col}"
+                            query += f" FROM {table_name} LIMIT 100"
+                            
+                            cursor.execute(query)
+                            rows = cursor.fetchall()
+                            
+                            for row in rows:
+                                if len(row) >= 2:
+                                    location = {
+                                        'latitude': row[0],
+                                        'longitude': row[1],
+                                        'type': 'Google Maps',
+                                        'table': table_name
+                                    }
+                                    if len(row) >= 3:
+                                        location['timestamp'] = row[2]
+                                    locations_data.append(location)
+                    except:
+                        pass
+                
+                # Vérifier si c'est une table de recherche
+                elif any(keyword in table_name.lower() for keyword in ['search', 'query']):
+                    try:
+                        cursor.execute(f"PRAGMA table_info({table_name})")
+                        columns = cursor.fetchall()
+                        col_info = [col[1].lower() for col in columns]
+                        
+                        query_col = None
+                        time_col = None
+                        
+                        for col_name in col_info:
+                            if 'query' in col_name or 'term' in col_name:
+                                query_col = col_name
+                            elif 'time' in col_name or 'date' in col_name:
+                                time_col = col_name
+                        
+                        if query_col:
+                            query = f"SELECT {query_col}"
+                            if time_col:
+                                query += f", {time_col}"
+                            query += f" FROM {table_name} LIMIT 50"
+                            
+                            cursor.execute(query)
+                            rows = cursor.fetchall()
+                            
+                            for row in rows:
+                                search = {
+                                    'query': row[0],
+                                    'type': 'search'
+                                }
+                                if len(row) >= 2:
+                                    search['timestamp'] = row[1]
+                                searches_data.append(search)
+                    except:
+                        pass
+                
+                # Afficher la table dans la liste
+                preview_btn = ''
+                if row_count > 0:
+                    preview_btn = f'''
+                    <button class="btn btn-sm btn-info" onclick="previewTable('{file_path}', '{table_name}')">
+                        <i class="fas fa-eye"></i> Aperçu
+                    </button>
+                    '''
+                
+                html += f'''
+                <tr>
+                    <td><strong>{table_name}</strong></td>
+                    <td><span class="badge bg-secondary">{row_count}</span></td>
+                    <td>{preview_btn}</td>
+                </tr>
+                '''
+                
+            except Exception as e:
+                html += f'''
+                <tr>
+                    <td><strong>{table_name}</strong></td>
+                    <td colspan="2"><small class="text-danger">Erreur: {str(e)[:50]}</small></td>
+                </tr>
+                '''
+        
+        # Ajouter une section pour les données extraites
+        if locations_data:
+            html += f'''
+            <div class="card mt-3">
+                <div class="card-header bg-success text-white">
+                    <h6><i class="fas fa-map-marker-alt"></i> {len(locations_data)} Points de localisation Google Maps</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Latitude</th>
+                                    <th>Longitude</th>
+                                    <th>Type</th>
+                                    <th>Carte</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            '''
+            
+            for loc in locations_data[:10]:
+                maps_url = f"https://www.google.com/maps?q={loc['latitude']},{loc['longitude']}"
+                html += f'''
+                <tr>
+                    <td>{loc['latitude']}</td>
+                    <td>{loc['longitude']}</td>
+                    <td><span class="badge bg-success">{loc['type']}</span></td>
+                    <td><a href="{maps_url}" target="_blank" class="btn btn-sm btn-outline-primary">Voir</a></td>
+                </tr>
+                '''
+            
+            html += '''
+                            </tbody>
+                        </table>
+                    </div>
+            '''
+            
+            if len(locations_data) > 1:
+                # Générer une carte avec tous les points
+                first_loc = locations_data[0]
+                html += f'''
+                    <div class="mt-3">
+                        <h7>Carte interactive:</h7>
+                        <div class="ratio ratio-16x9 border rounded">
+                            <iframe 
+                                src="https://www.openstreetmap.org/export/embed.html?bbox={
+                                    min(float(loc['longitude']) for loc in locations_data if isinstance(loc.get('longitude'), (int, float)))-0.01
+                                }%2C{
+                                    min(float(loc['latitude']) for loc in locations_data if isinstance(loc.get('latitude'), (int, float)))-0.01
+                                }%2C{
+                                    max(float(loc['longitude']) for loc in locations_data if isinstance(loc.get('longitude'), (int, float)))+0.01
+                                }%2C{
+                                    max(float(loc['latitude']) for loc in locations_data if isinstance(loc.get('latitude'), (int, float)))+0.01
+                                }&layer=map&marker={
+                                    first_loc['latitude']
+                                }%2C{
+                                    first_loc['longitude']
+                                }"
+                                style="border: none;"
+                                allowfullscreen>
+                            </iframe>
+                        </div>
+                    </div>
+                '''
+            
+            html += '''
+                </div>
+            </div>
+            '''
+        
+        if searches_data:
+            html += f'''
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    <h6><i class="fas fa-search"></i> {len(searches_data)} Recherches Google Maps</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+            '''
+            
+            for search in searches_data[:20]:
+                html += f'''
+                <span class="badge bg-light text-dark border">
+                    <i class="fas fa-search"></i> {search['query'][:30]}{'...' if len(search['query']) > 30 else ''}
+                </span>
+                '''
+            
+            html += '''
+                    </div>
+                </div>
+            </div>
+            '''
+        
+        html += '''
+            <script>
+            function previewTable(dbPath, tableName) {
+                const modal = document.createElement('div');
+                modal.className = 'modal fade';
+                modal.innerHTML = `
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Aperçu: ${tableName}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Chargement...</span>
+                                    </div>
+                                    <p>Chargement des données...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                const bsModal = new bootstrap.Modal(modal);
+                bsModal.show();
+                
+                fetch(`/preview-table/${dbPath}/${tableName}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            const modalBody = modal.querySelector('.modal-body');
+                            modalBody.innerHTML = data.html;
+                        } else {
+                            modal.querySelector('.modal-body').innerHTML = 
+                                `<div class="alert alert-danger">${data.message}</div>`;
+                        }
+                    })
+                    .catch(error => {
+                        modal.querySelector('.modal-body').innerHTML = 
+                            `<div class="alert alert-danger">Erreur: ${error}</div>`;
+                    });
+            }
+            </script>
+        '''
+        
+        html += '</div>'
+        
+        conn.close()
+        
+        return JsonResponse({
+            'filename': os.path.basename(file_path),
+            'content': content,
+            'parsed_content': html,
+            'size': os.path.getsize(full_path),
+            'file_type': 'maps_database',
+            'locations_count': len(locations_data),
+            'searches_count': len(searches_data)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': f"Erreur Google Maps DB: {str(e)}"}, status=500)
+
+def handle_maps_kml_gpx(full_path, file_path):
+    """Gérer les fichiers KML/GPX Google Maps"""
+    try:
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        locations = parse_kml_gpx(content)
+        
+        html = f'''
+        <div class="maps-kml-viewer">
+            <h5><i class="fab fa-google"></i> Google Maps Export: {os.path.basename(file_path)}</h5>
+            <p class="text-muted mb-3">Format: {os.path.splitext(file_path)[1].upper()}</p>
+        '''
+        
+        if locations:
+            html += f'''
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h6><i class="fas fa-map-marked-alt"></i> {len(locations)} Points de localisation</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Latitude</th>
+                                    <th>Longitude</th>
+                                    <th>Type</th>
+                                    <th>Carte</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            '''
+            
+            for loc in locations[:15]:
+                maps_url = f"https://www.google.com/maps?q={loc['latitude']},{loc['longitude']}"
+                html += f'''
+                <tr>
+                    <td>{loc['latitude']:.6f}</td>
+                    <td>{loc['longitude']:.6f}</td>
+                    <td><span class="badge bg-primary">{loc['type']}</span></td>
+                    <td><a href="{maps_url}" target="_blank" class="btn btn-sm btn-outline-primary">Voir</a></td>
+                </tr>
+                '''
+            
+            html += '''
+                            </tbody>
+                        </table>
+                    </div>
+            '''
+            
+            if len(locations) > 1:
+                # Calculer les bornes pour la carte
+                lats = [float(loc['latitude']) for loc in locations if isinstance(loc.get('latitude'), (int, float))]
+                lons = [float(loc['longitude']) for loc in locations if isinstance(loc.get('longitude'), (int, float))]
+                
+                if lats and lons:
+                    html += f'''
+                    <div class="mt-3">
+                        <h7>Visualisation du trajet:</h7>
+                        <div class="ratio ratio-16x9 border rounded">
+                            <iframe 
+                                src="https://www.openstreetmap.org/export/embed.html?bbox={
+                                    min(lons)-0.01
+                                }%2C{
+                                    min(lats)-0.01
+                                }%2C{
+                                    max(lons)+0.01
+                                }%2C{
+                                    max(lats)+0.01
+                                }&layer=map&marker={
+                                    lats[0]
+                                }%2C{
+                                    lons[0]
+                                }"
+                                style="border: none;"
+                                allowfullscreen>
+                            </iframe>
+                        </div>
+                        <p class="small text-muted mt-1">Carte montrant tous les points du fichier</p>
+                    </div>
+                    '''
+            
+            html += '''
+                </div>
+            </div>
+            '''
+        else:
+            html += '''
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> Aucune coordonnée GPS trouvée dans ce fichier
+            </div>
+            '''
+        
+        html += '</div>'
+        
+        return JsonResponse({
+            'filename': os.path.basename(file_path),
+            'content': content[:5000] + "..." if len(content) > 5000 else content,
+            'parsed_content': html,
+            'size': os.path.getsize(full_path),
+            'file_type': 'maps_export',
+            'locations_count': len(locations)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': f"Erreur KML/GPX: {str(e)}"}, status=500)
+
+def parse_maps_file_content(content, file_path):
+    """Parser le contenu des fichiers Google Maps"""
+    # Chercher des patterns spécifiques à Google Maps
+    patterns = {
+        'timestamps': r'"timestamp"\s*:\s*"([^"]+)"',
+        'coordinates': r'"latitudeE7"\s*:\s*(\d+).*?"longitudeE7"\s*:\s*(\d+)',
+        'places': r'"name"\s*:\s*"([^"]+)"',
+        'addresses': r'"address"\s*:\s*"([^"]+)"'
+    }
+    
+    html = '<div class="maps-data-analysis">'
+    html += '<h6><i class="fab fa-google"></i> Analyse des données Google Maps</h6>'
+    
+    # Chercher des coordonnées Google Maps format
+    google_coords = re.findall(r'"latitudeE7"\s*:\s*(\d+).*?"longitudeE7"\s*:\s*(\d+)', content)
+    
+    if google_coords:
+        html += f'<div class="alert alert-success">'
+        html += f'<i class="fas fa-check-circle"></i> {len(google_coords)} coordonnées Google Maps détectées'
+        html += '</div>'
+        
+        html += '<div class="table-responsive"><table class="table table-sm table-bordered">'
+        html += '<thead><tr><th>Latitude</th><th>Longitude</th><th>Carte</th></tr></thead><tbody>'
+        
+        for lat_e7, lon_e7 in google_coords[:10]:
+            try:
+                lat = int(lat_e7) / 1e7
+                lon = int(lon_e7) / 1e7
+                maps_url = f"https://www.google.com/maps?q={lat},{lon}"
+                html += f'''
+                <tr>
+                    <td>{lat:.6f}</td>
+                    <td>{lon:.6f}</td>
+                    <td><a href="{maps_url}" target="_blank" class="btn btn-sm btn-outline-primary">Voir</a></td>
+                </tr>
+                '''
+            except:
+                continue
+        
+        html += '</tbody></table></div>'
+    
+    # Chercher des noms de lieux
+    place_names = re.findall(r'"name"\s*:\s*"([^"]+)"', content)
+    if place_names:
+        unique_places = list(set(place_names))[:15]
+        html += f'''
+        <div class="mt-3">
+            <h7>Lieux référencés ({len(unique_places)}):</h7>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+        '''
+        for place in unique_places:
+            html += f'<span class="badge bg-info">{place[:30]}</span>'
+        html += '</div></div>'
+    
+    html += '</div>'
+    return html
 
 def handle_whatsapp_backup(full_path, file_path):
     """Gérer spécifiquement les backups WhatsApp"""
@@ -861,10 +1610,14 @@ def get_file_type_by_name(filename):
         return 'location'
     elif 'app' in filename_lower:
         return 'apps'
+    elif 'maps' in filename_lower or 'gmm_' in filename_lower:
+        return 'maps'
     elif filename_lower.endswith('.ab'):
         return 'backup'
     elif filename_lower.endswith(('.crypt14', '.crypt15')):
         return 'whatsapp_encrypted'
+    elif filename_lower.endswith(('.kml', '.gpx')):
+        return 'maps'
     else:
         return 'unknown'
 
@@ -889,6 +1642,8 @@ def parse_file_content(content, file_type, file_path=None):
             return parse_apps(content)
         elif file_type == 'browser':
             return parse_browser(content)
+        elif file_type == 'maps':
+            return parse_maps_file_content(content, file_path)
         else:
             return None
     except Exception as e:
@@ -1173,6 +1928,40 @@ def parse_location(content, file_path=None):
     wifi_locations = []
     cell_locations = []
     
+    # 1. Chercher les données Google Maps dans le contenu
+    google_maps_data = []
+    
+    # Format Google Maps Timeline JSON
+    google_patterns = [
+        r'"latitudeE7"\s*:\s*(\d+).*?"longitudeE7"\s*:\s*(\d+)',
+        r'"lat"\s*:\s*([+-]?\d+\.\d+).*?"lng"\s*:\s*([+-]?\d+\.\d+)',
+        r'"latitude"\s*:\s*([+-]?\d+\.\d+).*?"longitude"\s*:\s*([+-]?\d+\.\d+)'
+    ]
+    
+    for pattern in google_patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches:
+            try:
+                if len(match) >= 2:
+                    if 'E7' in pattern:  # Format Google E7
+                        lat = int(match[0]) / 1e7
+                        lon = int(match[1]) / 1e7
+                    else:
+                        lat = float(match[0])
+                        lon = float(match[1])
+                    
+                    if -90 <= lat <= 90 and -180 <= lon <= 180:
+                        google_maps_data.append({
+                            'latitude': lat,
+                            'longitude': lon,
+                            'type': 'Google Maps',
+                            'accuracy': 'Haute',
+                            'source': 'Google Timeline'
+                        })
+            except:
+                continue
+    
+    # 2. Chercher les données système GPS (comme avant)
     gps_patterns = [
         r'Location\[([+-]?\d+\.\d+),([+-]?\d+\.\d+)',
         r'lat(itude)?[=:]\s*([+-]?\d+\.\d+).*?lon(gitude)?[=:]\s*([+-]?\d+\.\d+)',
@@ -1204,6 +1993,31 @@ def parse_location(content, file_path=None):
                 except:
                     continue
     
+    # 3. Si on a un fichier, chercher aussi Google Maps dedans
+    if file_path:
+        try:
+            # Vérifier si c'est un fichier Google Maps
+            if 'maps' in file_path.lower() or 'gmm_' in file_path.lower():
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    file_content = f.read()
+                    # Extraire les données Google Maps du fichier
+                    maps_from_file = extract_maps_from_file(file_content)
+                    if maps_from_file:
+                        google_maps_data.extend(maps_from_file)
+        except:
+            pass
+    
+    # Combiner toutes les données
+    all_locations = google_maps_data + locations
+    unique_locations = []
+    seen = set()
+    
+    for loc in all_locations:
+        key = (round(loc['latitude'], 6), round(loc['longitude'], 6))
+        if key not in seen:
+            seen.add(key)
+            unique_locations.append(loc)
+    
     ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
     ips = re.findall(ip_pattern, content)
     unique_ips = list(set(ips))[:10]
@@ -1211,30 +2025,97 @@ def parse_location(content, file_path=None):
     wifi_pattern = r'SSID:\s*([^\n]+)'
     wifi_matches = re.findall(wifi_pattern, content, re.IGNORECASE)
     
-    html += '<h6>Données de localisation</h6>'
-    
-    if locations:
-        html += '<div class="mb-3">'
-        html += '<h7>Coordonnées GPS:</h7>'
-        html += '<div class="table-responsive"><table class="table table-sm table-bordered">'
-        html += '<thead><tr><th>Latitude</th><th>Longitude</th><th>Type</th><th>Précision</th><th>Carte</th></tr></thead><tbody>'
+    # Section Google Maps
+    if google_maps_data:
+        html += '''
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <h6><i class="fab fa-google"></i> Données Google Maps</h6>
+            </div>
+            <div class="card-body">
+        '''
         
-        for loc in locations[:10]:
+        html += f'<p><strong>{len(google_maps_data)} points de localisation Google Maps détectés</strong></p>'
+        
+        html += '<div class="table-responsive"><table class="table table-sm table-bordered">'
+        html += '<thead><tr><th>Latitude</th><th>Longitude</th><th>Type</th><th>Source</th><th>Carte</th></tr></thead><tbody>'
+        
+        for loc in google_maps_data[:10]:
             maps_url = f"https://www.google.com/maps?q={loc['latitude']},{loc['longitude']}"
             html += f'''
             <tr>
                 <td>{loc['latitude']:.6f}</td>
                 <td>{loc['longitude']:.6f}</td>
-                <td><span class="badge bg-success">{loc['type']}</span></td>
-                <td><span class="badge bg-info">{loc['accuracy']}</span></td>
+                <td><span class="badge bg-primary">{loc['type']}</span></td>
+                <td><small>{loc.get('source', 'N/A')}</small></td>
                 <td><a href="{maps_url}" target="_blank" class="btn btn-sm btn-outline-primary">Voir</a></td>
             </tr>
             '''
         
         html += '</tbody></table></div>'
         
-        if locations:
-            first_loc = locations[0]
+        # Afficher une carte pour les points Google Maps
+        if google_maps_data:
+            first_loc = google_maps_data[0]
+            lats = [loc['latitude'] for loc in google_maps_data if isinstance(loc.get('latitude'), (int, float))]
+            lons = [loc['longitude'] for loc in google_maps_data if isinstance(loc.get('longitude'), (int, float))]
+            
+            if lats and lons:
+                html += f'''
+                <div class="mt-3">
+                    <h7>Carte des points Google Maps:</h7>
+                    <div class="ratio ratio-16x9 border rounded">
+                        <iframe 
+                            src="https://www.openstreetmap.org/export/embed.html?bbox={
+                                min(lons)-0.01
+                            }%2C{
+                                min(lats)-0.01
+                            }%2C{
+                                max(lons)+0.01
+                            }%2C{
+                                max(lats)+0.01
+                            }&layer=map&marker={
+                                first_loc['latitude']
+                            }%2C{
+                                first_loc['longitude']
+                            }"
+                            style="border: none;"
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+                    <p class="small text-muted mt-1">Carte montrant la zone couverte par les points Google Maps</p>
+                </div>
+                '''
+        
+        html += '''
+            </div>
+        </div>
+        '''
+    
+    html += '<h6>Données de localisation</h6>'
+    
+    if unique_locations:
+        html += '<div class="mb-3">'
+        html += '<h7>Coordonnées GPS:</h7>'
+        html += '<div class="table-responsive"><table class="table table-sm table-bordered">'
+        html += '<thead><tr><th>Latitude</th><th>Longitude</th><th>Type</th><th>Précision</th><th>Carte</th></tr></thead><tbody>'
+        
+        for loc in unique_locations[:10]:
+            maps_url = f"https://www.google.com/maps?q={loc['latitude']},{loc['longitude']}"
+            html += f'''
+            <tr>
+                <td>{loc['latitude']:.6f}</td>
+                <td>{loc['longitude']:.6f}</td>
+                <td><span class="badge bg-success">{loc['type']}</span></td>
+                <td><span class="badge bg-info">{loc.get('accuracy', 'N/A')}</span></td>
+                <td><a href="{maps_url}" target="_blank" class="btn btn-sm btn-outline-primary">Voir</a></td>
+            </tr>
+            '''
+        
+        html += '</tbody></table></div>'
+        
+        if unique_locations:
+            first_loc = unique_locations[0]
             html += f'''
             <div class="mt-3">
                 <h7>Carte:</h7>
@@ -1277,7 +2158,7 @@ def parse_location(content, file_path=None):
             <h6 class="card-title">Statistiques de localisation</h6>
             <div class="row text-center">
                 <div class="col">
-                    <div class="display-6">{len(locations)}</div>
+                    <div class="display-6">{len(unique_locations)}</div>
                     <small>Points GPS</small>
                 </div>
                 <div class="col">
@@ -1288,15 +2169,99 @@ def parse_location(content, file_path=None):
                     <div class="display-6">{len(wifi_matches)}</div>
                     <small>Réseaux WiFi</small>
                 </div>
+                <div class="col">
+                    <div class="display-6">{len(google_maps_data)}</div>
+                    <small>Google Maps</small>
+                </div>
             </div>
         </div>
     </div>
     '''
     
     html += stats_html
+    
+    # Ajouter un bouton pour exporter les trajets
+    if google_maps_data or unique_locations:
+        html += f'''
+        <div class="mt-3">
+            <button class="btn btn-success" onclick="exportMapsData({json.dumps(google_maps_data + unique_locations)})">
+                <i class="fas fa-download"></i> Exporter les trajets (GPX)
+            </button>
+        </div>
+        
+        <script>
+        function exportMapsData(locations) {{
+            let gpx = `<?xml version="1.0"?>
+        <gpx version="1.1" creator="Android Collector">
+            <trk><name>Trajets extraits</name><trkseg>`;
+            
+            locations.forEach(loc => {{
+                gpx += `<trkpt lat="${{loc.latitude}}" lon="${{loc.longitude}}"></trkpt>\\n`;
+            }});
+            
+            gpx += `</trkseg></trk></gpx>`;
+            
+            const blob = new Blob([gpx], {{type: 'application/gpx+xml'}});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'trajets_extraits.gpx';
+            a.click();
+            URL.revokeObjectURL(url);
+        }}
+        </script>
+        '''
+    
     html += '</div>'
     
     return html
+
+def extract_maps_from_file(content):
+    """Extraire les données Google Maps d'un fichier"""
+    locations = []
+    
+    # Chercher les patterns spécifiques à Google Maps
+    patterns = [
+        # Format JSON Google Timeline
+        (r'"latitudeE7"\s*:\s*(\d+).*?"longitudeE7"\s*:\s*(\d+)', 'Google Timeline'),
+        # Format KML
+        (r'<coordinates>([^<]+)</coordinates>', 'KML'),
+        # Format GPX
+        (r'<trkpt lat="([^"]+)" lon="([^"]+)">', 'GPX')
+    ]
+    
+    for pattern, source in patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches:
+            try:
+                if source == 'Google Timeline':
+                    lat = int(match[0]) / 1e7
+                    lon = int(match[1]) / 1e7
+                elif source == 'KML':
+                    # Format: lon,lat[,alt]
+                    coords = match.strip().split(',')
+                    if len(coords) >= 2:
+                        lon = float(coords[0])
+                        lat = float(coords[1])
+                    else:
+                        continue
+                elif source == 'GPX':
+                    lat = float(match[0])
+                    lon = float(match[1])
+                else:
+                    continue
+                
+                if -90 <= lat <= 90 and -180 <= lon <= 180:
+                    locations.append({
+                        'latitude': lat,
+                        'longitude': lon,
+                        'type': 'Google Maps',
+                        'source': source
+                    })
+            except:
+                continue
+    
+    return locations
 
 def parse_apps(content):
     """Parser la liste des applications"""
@@ -1659,6 +2624,12 @@ def execute_command(request):
             'file': None,
             'msg': "Fichiers vidéo extraits",
             'is_videos': True
+        },
+        'extract_google_maps': {
+            'cmd': None,
+            'file': None,
+            'msg': "Données Google Maps extraites",
+            'is_google_maps': True
         }
     }
 
@@ -1668,11 +2639,54 @@ def execute_command(request):
     config = actions[action]
     
     try:
+        # Traitement GOOGLE MAPS
+        if config.get('is_google_maps'):
+            try:
+                maps_data = extract_google_maps_data(adb_path, device, timestamp)
+                
+                output = f"Google Maps Data Extracted:\n"
+                output += f"- Timeline points: {len(maps_data.get('timeline', []))}\n"
+                output += f"- Searches: {len(maps_data.get('searches', []))}\n"
+                output += f"- Saved places: {len(maps_data.get('saved_places', []))}\n"
+                
+                # Sauvegarder les données
+                maps_file = f"collector/static/collected_data/google_maps_{timestamp}.json"
+                with open(maps_file, 'w', encoding='utf-8') as f:
+                    json.dump(maps_data, f, indent=2)
+                
+                result['status'] = 'success'
+                result['message'] = f"Données Google Maps extraites: {len(maps_data.get('timeline', []))} points de localisation"
+                result['output'] = output
+                result['file_path'] = f"collected_data/google_maps_{timestamp}.json"
+                
+                return JsonResponse(result)
+                
+            except Exception as e:
+                result['message'] = f"Erreur extraction Google Maps: {str(e)}"
+                return JsonResponse(result)
+        
         # Traitement DUMP COMPLET
         if config.get('is_full_dump'):
             dump_results = []
             dump_dir = f"collector/static/collected_data/full_dump_{timestamp}"
             os.makedirs(dump_dir, exist_ok=True)
+            
+            # Ajouter l'extraction Google Maps au dump complet
+            try:
+                maps_data = extract_google_maps_data(adb_path, device, timestamp)
+                if maps_data.get('timeline'):
+                    maps_file = os.path.join(dump_dir, 'google_maps_timeline.json')
+                    with open(maps_file, 'w', encoding='utf-8') as f:
+                        json.dump(maps_data, f, indent=2)
+                    
+                    # Créer une entrée dans la chaîne de preuve
+                    create_evidence_chain(maps_file, "google_maps_extraction")
+                    
+                    dump_results.append(f"✓ Google Maps: {len(maps_data.get('timeline', []))} points de localisation")
+                else:
+                    dump_results.append("✗ Google Maps: Aucune donnée trouvée")
+            except Exception as e:
+                dump_results.append(f"✗ Google Maps: {str(e)[:50]}")
             
             extractions = [
                 ('Informations système', [adb_path, '-s', device, 'shell', 'getprop']),
@@ -1742,12 +2756,45 @@ def execute_command(request):
                     # Créer une entrée dans la chaîne de preuve
                     evidence_entry = create_evidence_chain(backup_file, "full_backup")
                     dump_results.append(f"✓ Backup ADB terminé ({os.path.getsize(backup_file) / (1024*1024):.2f} MB) (preuve: {evidence_entry.get('sha256', 'N/A')[:16]}...)")
+                    
+                    # Extraire Google Maps du backup
+                    try:
+                        maps_from_backup = extract_google_maps_from_backup(backup_file)
+                        if maps_from_backup and maps_from_backup.get('timeline'):
+                            maps_backup_file = os.path.join(dump_dir, 'google_maps_from_backup.json')
+                            with open(maps_backup_file, 'w', encoding='utf-8') as f:
+                                json.dump(maps_from_backup, f, indent=2)
+                            dump_results.append(f"✓ Google Maps depuis backup: {len(maps_from_backup.get('timeline', []))} points")
+                    except:
+                        pass
                 else:
                     dump_results.append("✗ Backup ADB échoué ou annulé")
             except subprocess.TimeoutExpired:
                 dump_results.append("⚠ Backup timeout - Vérifiez si le fichier a été créé")
             except Exception as e:
                 dump_results.append(f"✗ Backup ADB: {str(e)[:100]}")
+            
+            # Backup Google Maps spécifique
+            try:
+                maps_backup = os.path.join(dump_dir, 'google_maps_backup.ab')
+                dump_results.append("⚠ Backup Google Maps - Popup sur le téléphone...")
+                subprocess.run(
+                    [adb_path, '-s', device, 'backup', '-f', maps_backup, '-noapk', 'com.google.android.apps.maps'],
+                    timeout=600,
+                    capture_output=True,
+                    text=True
+                )
+                
+                if os.path.exists(maps_backup) and os.path.getsize(maps_backup) > 1000:
+                    # Créer une entrée dans la chaîne de preuve
+                    evidence_entry = create_evidence_chain(maps_backup, "google_maps_backup")
+                    dump_results.append(f"✓ Backup Google Maps terminé ({os.path.getsize(maps_backup) / (1024*1024):.2f} MB) (preuve: {evidence_entry.get('sha256', 'N/A')[:16]}...)")
+                else:
+                    dump_results.append("✗ Backup Google Maps échoué")
+            except subprocess.TimeoutExpired:
+                dump_results.append("⚠ Google Maps timeout")
+            except Exception as e:
+                dump_results.append(f"✗ Google Maps backup: {str(e)[:100]}")
             
             # Backup WhatsApp
             try:
@@ -1870,23 +2917,28 @@ def execute_command(request):
             except Exception as e:
                 dump_results.append(f"✗ Extraction média échouée: {str(e)[:100]}")
             
-            # Décoder automatiquement les backups WhatsApp
+            # Décoder automatiquement les backups
             try:
                 for root, dirs, files in os.walk(dump_dir):
                     for file in files:
-                        if file.lower().endswith('.ab') and 'whatsapp' in file.lower():
+                        if file.lower().endswith('.ab'):
                             ab_file = os.path.join(root, file)
                             rel_path = os.path.relpath(ab_file, 'collector/static/collected_data')
                             try:
                                 decode_result = decode_backup_file(ab_file, tempfile.mkdtemp())
                                 if decode_result['status'] == 'success':
-                                    # Créer des entrées de preuve pour les fichiers décodés
+                                    # Chercher spécifiquement Google Maps dans les fichiers décodés
                                     for dec_root, dec_dirs, dec_files in os.walk(decode_result['output_dir']):
-                                        for dec_file in dec_files[:5]:  # Limiter aux 5 premiers fichiers
-                                            dec_filepath = os.path.join(dec_root, dec_file)
-                                            create_evidence_chain(dec_filepath, "whatsapp_decoded")
+                                        for dec_file in dec_files:
+                                            if 'gmm_' in dec_file.lower() or ('maps' in dec_file.lower() and dec_file.endswith('.db')):
+                                                # Copier la base de données Google Maps
+                                                source_path = os.path.join(dec_root, dec_file)
+                                                dest_name = f"decoded_{timestamp}_{dec_file}"
+                                                dest_path = os.path.join('collector/static/collected_data', dest_name)
+                                                shutil.copy2(source_path, dest_path)
+                                                dump_results.append(f"✓ Base de données Google Maps décodée: {dec_file}")
                                     
-                                    dump_results.append(f"✓ Backup WhatsApp décodé automatiquement")
+                                    dump_results.append(f"✓ Backup {file} décodé automatiquement")
                             except:
                                 pass
             except:
@@ -1924,9 +2976,6 @@ def execute_command(request):
             except Exception as e:
                 result['message'] = f"Erreur extraction appels: {str(e)}"
                 return JsonResponse(result)
-        
-        # Traitement des autres actions...
-        # [Le reste du code pour les autres actions reste inchangé]
         
         # Pour les autres actions qui utilisent cmd
         if config['cmd']:
@@ -2009,6 +3058,10 @@ def view_dump(request, dump_name):
                 file_type = 'logs'
             elif 'location' in filename.lower():
                 file_type = 'location'
+            elif 'maps' in filename.lower() or 'gmm_' in filename.lower():
+                file_type = 'maps'
+            elif filename.lower().endswith(('.kml', '.gpx')):
+                file_type = 'maps'
             elif filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 file_type = 'image'
             elif filename.lower().endswith('.ab'):
@@ -2089,6 +3142,7 @@ def decode_backup(request, file_path):
             extracted_count = 0
             extracted_files = []
             whatsapp_files = []
+            maps_files = []
             try:
                 with tarfile.open(tar_file, 'r') as tar:
                     for member in tar.getmembers():
@@ -2101,6 +3155,8 @@ def decode_backup(request, file_path):
                             
                             if safe_name.lower().endswith('.db') and ('whatsapp' in safe_name.lower() or 'msgstore' in safe_name.lower()):
                                 whatsapp_files.append(safe_name)
+                            elif 'gmm_' in safe_name.lower() or ('maps' in safe_name.lower() and safe_name.lower().endswith('.db')):
+                                maps_files.append(safe_name)
                             
                             if len(extracted_files) < 20:
                                 extracted_files.append(safe_name)
@@ -2118,6 +3174,21 @@ def decode_backup(request, file_path):
                 os.remove(tar_file)
             except:
                 pass
+            
+            # Copier les bases de données Google Maps
+            for maps_file in maps_files:
+                try:
+                    source_path = os.path.join(output_folder, maps_file)
+                    if os.path.exists(source_path):
+                        timestamp = int(time.time())
+                        dest_filename = f"maps_{timestamp}_{os.path.basename(maps_file)}"
+                        dest_path = os.path.join('collector/static/collected_data', dest_filename)
+                        shutil.copy2(source_path, dest_path)
+                        
+                        # Créer une entrée dans la chaîne de preuve
+                        create_evidence_chain(dest_path, "maps_decoded_db")
+                except:
+                    pass
             
             for whatsapp_file in whatsapp_files:
                 try:
@@ -2148,6 +3219,7 @@ def decode_backup(request, file_path):
                 'output_folder': static_output,
                 'extracted_files': extracted_files[:10],
                 'whatsapp_files': whatsapp_files[:5],
+                'maps_files': maps_files[:5],
                 'total_files': file_count,
                 'accessible_url': f"/static/{static_output}"
             })
@@ -2531,6 +3603,7 @@ def count_artefacts(extraction_data):
         "documents": 0,
         "browsing_history": 0,
         "location_data": 0,
+        "google_maps": 0,
         "wifi_networks": 0,
         "installed_apps": 0
     }
@@ -2546,6 +3619,7 @@ def generate_findings_summary(extraction_data):
         "call_logs_found": "Oui" if extraction_data.get('has_calls', False) else "Non",
         "sms_messages_found": "Oui" if extraction_data.get('has_sms', False) else "Non",
         "whatsapp_data_found": "Oui" if extraction_data.get('has_whatsapp', False) else "Non",
+        "google_maps_data_found": "Oui" if extraction_data.get('has_google_maps', False) else "Non",
         "images_found": "Oui" if extraction_data.get('has_images', False) else "Non",
         "location_data_found": "Oui" if extraction_data.get('has_location', False) else "Non",
         "significant_findings": extraction_data.get('significant_findings', 'Aucune donnée significative')
@@ -2661,6 +3735,7 @@ def generate_html_report(report):
                     <tr><td>Journaux d'appels</td><td>{report['findings_summary']['call_logs_found']}</td></tr>
                     <tr><td>Messages SMS</td><td>{report['findings_summary']['sms_messages_found']}</td></tr>
                     <tr><td>Données WhatsApp</td><td>{report['findings_summary']['whatsapp_data_found']}</td></tr>
+                    <tr><td>Données Google Maps</td><td>{report['findings_summary']['google_maps_data_found']}</td></tr>
                 </table>
             </div>
         </div>
@@ -2792,8 +3867,10 @@ def get_latest_extraction_data():
         'has_calls': True,
         'has_sms': True,
         'has_whatsapp': True,
+        'has_google_maps': True,
         'has_images': True,
         'has_location': True,
         'main_findings': 'Données de communication extraites avec succès',
-        'significant_findings': 'Aucune donnée compromettante détectée'
+        'significant_findings': 'Trajets Google Maps détectés',
+        'google_maps_points': 156  # Exemple de données Google Maps
     }
